@@ -1,12 +1,12 @@
 //+------------------------------------------------------------------+
 //|                                            Account Protector.mq4 |
-//|                             Copyright © 2017-2021, EarnForex.com |
+//|                             Copyright © 2017-2022, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #property copyright "EarnForex.com"
 #property link      "https://www.earnforex.com/metatrader-expert-advisors/Account-Protector/"
-#property version   "1.05"
-string    Version = "1.05";
+#property version   "1.06"
+string    Version = "1.06";
 #property strict
 
 #property description "Protects account balance by applying given actions when set conditions trigger."
@@ -25,21 +25,32 @@ input bool DisableFloatLossRisePerc = false; // Disable floating loss rises % co
 input bool DisableFloatLossFallPerc = true; // Disable floating loss falls % condition.
 input bool DisableFloatLossRiseCurr = false; // Disable floating loss rises currency units condition.
 input bool DisableFloatLossFallCurr = true; // Disable floating loss falls currency units condition.
-input bool DisableFloatLossRisePips = false; // Disable floating loss rises pips condition.
-input bool DisableFloatLossFallPips = true; // Disable floating loss falls pips condition.
+input bool DisableFloatLossRisePoints = false; // Disable floating loss rises points condition.
+input bool DisableFloatLossFallPoints = true; // Disable floating loss falls points condition.
 input bool DisableFloatProfitRisePerc = false; // Disable floating profit rises % condition.
 input bool DisableFloatProfitFallPerc = true; // Disable floating profit falls % condition.
 input bool DisableFloatProfitRiseCurr = false; // Disable floating profit rises currency units condition.
 input bool DisableFloatProfitFallCurr = true; // Disable floating profit falls currency units condition.
-input bool DisableFloatProfitRisePips = false; // Disable floating profit rises pips condition.
-input bool DisableFloatProfitFallPips = true; // Disable floating profit falls pips condition.
+input bool DisableFloatProfitRisePoints = false; // Disable floating profit rises points condition.
+input bool DisableFloatProfitFallPoints = true; // Disable floating profit falls points condition.
 input bool DisableCurrentPriceGE = true; // Disable current price greater or equal condition.
 input bool DisableCurrentPriceLE = true; // Disable current price less or equal condition.
 input bool DisableEquityMinusSnapshot = true; // Disable (Equity - snapshot) greater or equal condition.
 input bool DisableSnapshotMinusEquity = true; // Disable (snapshot - Equity) greater or equal condition.
+input bool DisableMarginLevelGE = true; // Disable margin level greater or equal condition.
+input bool DisableMarginLevelLE = true; // Disable margin level less or equal condition.
+input bool DisableSpreadGE = true; // Disable spread greater or equal condition.
+input bool DisableSpreadLE = true; // Disable spread less or equal condition.
+input bool DisableDailyProfitLossUnitsGE = true; // Disable daily profit/loss greater or equal units condition.
+input bool DisableDailyProfitLossUnitsLE = true; // Disable daily profit/loss level less or equal units condition.
+input bool DisableDailyProfitLossPointsGE = true; // Disable daily profit/loss greater or equal points condition.
+input bool DisableDailyProfitLossPointsLE = true; // Disable daily profit/loss level less or equal points condition.
+input bool DisableDailyProfitLossPercGE = true; // Disable daily profit/loss greater or equal percentage condition.
+input bool DisableDailyProfitLossPercLE = true; // Disable daily profit/loss level less or equal percentage condition.
 input int DelayOrderClose = 0; // DelayOrderClose: Delay in milliseconds.
 input bool UseTotalVolume = false; // UseTotalVolume: enable if trading with many small trades and partial position closing.
 input double AdditionalFunds = 0; // AdditionalFunds: Added to balance, equity, and free margin.
+input string Instruments = ""; // Instruments: Default list of trading instruments for order filtering.
 
 CAccountProtector ExtDialog;
 
@@ -48,6 +59,8 @@ CAccountProtector ExtDialog;
 //+------------------------------------------------------------------+
 int OnInit()
 {
+    MathSrand(GetTickCount() + 2202051901); // Used by CreateInstanceId() in Dialog.mqh (standard library). Keep the second number unique across other panel indicators/EAs.
+
     if (!ExtDialog.LoadSettingsFromDisk())
     {
         sets.CountCommSwaps = true;
@@ -75,18 +88,21 @@ int OnInit()
         sets.MagicNumbers = "";
         sets.boolExcludeMagics = false;
         sets.intInstrumentFilter = 0;
+        sets.Instruments = Instruments;
+        sets.boolIgnoreLossTrades = false;
+        sets.boolIgnoreProfitTrades = false;
         sets.boolLossPerBalance = false;
         sets.boolLossQuanUnits = false;
-        sets.boolLossPips = false;
+        sets.boolLossPoints = false;
         sets.boolProfPerBalance = false;
         sets.boolProfQuanUnits = false;
-        sets.boolProfPips = false;
+        sets.boolProfPoints = false;
         sets.boolLossPerBalanceReverse = false;
         sets.boolLossQuanUnitsReverse = false;
-        sets.boolLossPipsReverse = false;
+        sets.boolLossPointsReverse = false;
         sets.boolProfPerBalanceReverse = false;
         sets.boolProfQuanUnitsReverse = false;
-        sets.boolProfPipsReverse = false;
+        sets.boolProfPointsReverse = false;
         sets.boolEquityLessUnits = false;
         sets.boolEquityGrUnits = false;
         sets.boolEquityLessPerSnap = false;
@@ -99,18 +115,28 @@ int OnInit()
         sets.boolMarginGrPerSnap = false;
         sets.boolPriceGE = false;
         sets.boolPriceLE = false;
+        sets.boolMarginLevelGE = false;
+        sets.boolMarginLevelLE = false;
+        sets.boolSpreadGE = false;
+        sets.boolSpreadLE = false;
+        sets.boolDailyProfitLossUnitsGE = false;
+        sets.boolDailyProfitLossUnitsLE = false;
+        sets.boolDailyProfitLossPointsGE = false;
+        sets.boolDailyProfitLossPointsLE = false;
+        sets.boolDailyProfitLossPercGE = false;
+        sets.boolDailyProfitLossPercLE = false;
         sets.doubleLossPerBalance = 0;
         sets.doubleLossQuanUnits = 0;
-        sets.intLossPips = 0;
+        sets.intLossPoints = 0;
         sets.doubleProfPerBalance = 0;
         sets.doubleProfQuanUnits = 0;
-        sets.intProfPips = 0;
+        sets.intProfPoints = 0;
         sets.doubleLossPerBalanceReverse = 0;
         sets.doubleLossQuanUnitsReverse = 0;
-        sets.intLossPipsReverse = 0;
+        sets.intLossPointsReverse = 0;
         sets.doubleProfPerBalanceReverse = 0;
         sets.doubleProfQuanUnitsReverse = 0;
-        sets.intProfPipsReverse = 0;
+        sets.intProfPointsReverse = 0;
         sets.doubleEquityLessUnits = 0;
         sets.doubleEquityGrUnits = 0;
         sets.doubleEquityLessPerSnap = 0;
@@ -123,6 +149,16 @@ int OnInit()
         sets.doubleMarginGrPerSnap = 0;
         sets.doublePriceGE = 0;
         sets.doublePriceLE = 0;
+        sets.doubleMarginLevelGE = 0;
+        sets.doubleMarginLevelLE = 0;
+        sets.intSpreadGE = 0;
+        sets.intSpreadLE = 0;
+        sets.doubleDailyProfitLossUnitsGE= 0;
+        sets.doubleDailyProfitLossUnitsLE = 0;
+        sets.intDailyProfitLossPointsGE= 0;
+        sets.intDailyProfitLossPointsLE = 0;
+        sets.doubleDailyProfitLossPercGE= 0;
+        sets.doubleDailyProfitLossPercLE = 0;
         sets.ClosePos = true;
         sets.doubleClosePercentage = 100;
         sets.CloseWhichPositions = All;
@@ -218,6 +254,7 @@ void OnDeinit(const int reason)
     }
     else
     {
+        if (reason == REASON_PARAMETERS) GlobalVariableSet("AP-" + IntegerToString(ChartID()) + "-Parameters", 1);
         ExtDialog.SaveSettingsOnDisk();
         ExtDialog.IniFileSave();
     }
@@ -233,14 +270,14 @@ void OnChartEvent(const int id,
                   const double &dparam,
                   const string &sparam)
 {
-// Remember the panel's location to have the same location for minimized and maximized states.
+    // Remember the panel's location to have the same location for minimized and maximized states.
     if ((id == CHARTEVENT_CUSTOM + ON_DRAG_END) && (lparam == -1))
     {
         ExtDialog.remember_top = ExtDialog.Top();
         ExtDialog.remember_left = ExtDialog.Left();
     }
 
-// Call Panel's event handler only if it is not a CHARTEVENT_CHART_CHANGE - workaround for minimization bug on chart switch.
+    // Call Panel's event handler only if it is not a CHARTEVENT_CHART_CHANGE - workaround for minimization bug on chart switch.
     if (id != CHARTEVENT_CHART_CHANGE) ExtDialog.OnEvent(id, lparam, dparam, sparam);
 
     if (ExtDialog.Top() < 0) ExtDialog.Move(ExtDialog.Left(), 0);

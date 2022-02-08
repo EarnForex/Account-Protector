@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //|                                                      Defines.mqh |
-//|                             Copyright © 2017-2021, EarnForex.com |
+//|                             Copyright © 2017-2022, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #include <Controls\Button.mqh>
@@ -62,10 +62,10 @@ enum ENUM_CONDITIONS
 {
     Floating_loss_rises_to_perecentage,
     Floating_loss_rises_to_currency_units,
-    Floating_loss_rises_to_pips,
+    Floating_loss_rises_to_points,
     Floating_profit_rises_to_perecentage,
     Floating_profit_rises_to_currency_units,
-    Floating_profit_rises_to_pips,
+    Floating_profit_rises_to_points,
     Other_condition // Any other condition where sorting or partial closure is irrelevant.
 };
 
@@ -96,18 +96,21 @@ struct Settings
     string           MagicNumbers;
     bool             boolExcludeMagics;
     int              intInstrumentFilter;
+    string           Instruments;
+    bool             boolIgnoreLossTrades;
+    bool             boolIgnoreProfitTrades;
     bool             boolLossPerBalance;
     bool             boolLossQuanUnits;
-    bool             boolLossPips;
+    bool             boolLossPoints;
     bool             boolProfPerBalance;
     bool             boolProfQuanUnits;
-    bool             boolProfPips;
+    bool             boolProfPoints;
     bool             boolLossPerBalanceReverse;
     bool             boolLossQuanUnitsReverse;
-    bool             boolLossPipsReverse;
+    bool             boolLossPointsReverse;
     bool             boolProfPerBalanceReverse;
     bool             boolProfQuanUnitsReverse;
-    bool             boolProfPipsReverse;
+    bool             boolProfPointsReverse;
     bool             boolEquityLessUnits;
     bool             boolEquityGrUnits;
     bool             boolEquityLessPerSnap;
@@ -120,18 +123,28 @@ struct Settings
     bool             boolMarginGrPerSnap;
     bool             boolPriceGE;
     bool             boolPriceLE;
+    bool             boolMarginLevelGE;
+    bool             boolMarginLevelLE;
+    bool             boolSpreadGE;
+    bool             boolSpreadLE;
+    bool             boolDailyProfitLossUnitsGE;
+    bool             boolDailyProfitLossUnitsLE;
+    bool             boolDailyProfitLossPointsGE;
+    bool             boolDailyProfitLossPointsLE;
+    bool             boolDailyProfitLossPercGE;
+    bool             boolDailyProfitLossPercLE;
     double           doubleLossPerBalance;
     double           doubleLossQuanUnits;
-    int              intLossPips;
+    int              intLossPoints;
     double           doubleProfPerBalance;
     double           doubleProfQuanUnits;
-    int              intProfPips;
+    int              intProfPoints;
     double           doubleLossPerBalanceReverse;
     double           doubleLossQuanUnitsReverse;
-    int              intLossPipsReverse;
+    int              intLossPointsReverse;
     double           doubleProfPerBalanceReverse;
     double           doubleProfQuanUnitsReverse;
-    int              intProfPipsReverse;
+    int              intProfPointsReverse;
     double           doubleEquityLessUnits;
     double           doubleEquityGrUnits;
     double           doubleEquityLessPerSnap;
@@ -144,6 +157,16 @@ struct Settings
     double           doubleMarginGrPerSnap;
     double           doublePriceGE;
     double           doublePriceLE;
+    double           doubleMarginLevelGE;
+    double           doubleMarginLevelLE;
+    int              intSpreadGE;
+    int              intSpreadLE;
+    double           doubleDailyProfitLossUnitsGE;
+    double           doubleDailyProfitLossUnitsLE;
+    int              intDailyProfitLossPointsGE;
+    int              intDailyProfitLossPointsLE;
+    double           doubleDailyProfitLossPercGE;
+    double           doubleDailyProfitLossPercLE;
     bool             ClosePos;
     double           doubleClosePercentage;
     Position_Status  CloseWhichPositions;
