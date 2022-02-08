@@ -6,7 +6,7 @@ Account Protector lets you automate emergency position closing and other importa
 
 You can set one or several conditions from a long list of available ones, configure position/order filters, set trailing stop and break-even trailing, trigger various actions by timer, and have a special emergency button for a quick resolution of unwanted trading situations.
 
-![Account Protector - an example chart with Conditions tab shown](https://github.com/EarnForex/Account-Protector/blob/master/README_Images/account-protector-example.png)
+![Account Protector - an example chart with Filters tab shown](https://github.com/EarnForex/Account-Protector/blob/master/README_Images/account-protector-example.png)
 
 A very detailed description of the expert advisor can be found here:
 https://www.earnforex.com/metatrader-expert-advisors/Account-Protector/
