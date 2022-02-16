@@ -4088,6 +4088,7 @@ void CAccountProtector::EquityTrailing()
         string AdditionalFunds_Asterisk = "";
         if (AdditionalFunds != 0) AdditionalFunds_Asterisk = "*";
         Logging("Account Protector: Equity stop-loss of " + DoubleToString(sets.doubleCurrentEquityStopLoss, 2) + " hit at " + DoubleToString(AE, 2) + AdditionalFunds_Asterisk + ". Closing all positions.");
+        Logging_Condition_Is_Met();
         Close_All_Positions();
 
         sets.boolEquityTrailingStop = false;
