@@ -1,3 +1,4 @@
+[![Support Ukraine Badge](https://bit.ly/support-ukraine-now)](https://github.com/support-ukraine/support-ukraine)
 # Account Protector
 
 Account Protector expert advisor for MT4 and MT5 by EarnForex.com.
