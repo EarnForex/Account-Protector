@@ -154,6 +154,7 @@ private:
     bool         IsDouble(const string value);
     bool         IsInteger(const string value);
     double       CalculateOrderLots(const double lots, const string symbol);
+    int          GetFurthest();
 
     // Event handlers
     void OnClickBtnTabMain();
@@ -2704,6 +2705,9 @@ void CAccountProtector::OnClickBtnPositionStatus()
         sets.CloseWhichPositions = Profitable;
         break;
     case Profitable:
+        sets.CloseWhichPositions = Furthest;
+        break;
+    case Furthest:
         sets.CloseWhichPositions = All;
         break;
     default:
@@ -3676,6 +3680,7 @@ void CAccountProtector::Close_All_Positions()
     int total = ArrayRange(PositionsByProfit, 0); // We already have an array with all tickets.
 
     // Closing market orders. Going backwards to delete an order from the array after closing it.
+    if(sets.CloseWhichPositions!=Furthest){
     for (int i = total - 1; i >= 0; i--)
     {
         if (!OrderSelect((int)PositionsByProfit[i][1], SELECT_BY_TICKET))
@@ -3738,6 +3743,11 @@ void CAccountProtector::Close_All_Positions()
            Sleep(DelayOrderClose);
         }
     }
+    }else{
+     error = Eliminate_Current_Order(GetFurthest());
+     if (error != 0) Logging("Account Protector: OrderClose failed. Error #" + IntegerToString(error));
+     //IsANeedToContinueClosingOrders=false;
+    }
 
     // Check if all orders have been eliminated.
     if (!IsANeedToContinueClosingOrders) return;
@@ -3782,6 +3792,23 @@ void CAccountProtector::Close_All_Positions()
     }
 }
 
+int CAccountProtector::GetFurthest(void){
+ double dist=0;
+ int tick=-1;
+ for(int i=OrdersTotal(); i>=0; i--)
+ {
+  if(!OrderSelect(i,SELECT_BY_POS))continue;
+  if(OrderType()==OP_BUY && ((OrderOpenPrice()-MarketInfo(OrderSymbol(),MODE_ASK))>dist||dist==0)){
+   dist=(OrderOpenPrice()-MarketInfo(OrderSymbol(),MODE_ASK));
+   tick=OrderTicket();
+  }
+  if(OrderType()==OP_SELL && ((MarketInfo(OrderSymbol(),MODE_BID)-OrderOpenPrice())>dist||dist==0)){
+   dist=(MarketInfo(OrderSymbol(),MODE_BID)-OrderOpenPrice());
+   tick=OrderTicket();
+  }
+ }
+ return tick;
+}
 // Deletes all pending orders.
 void CAccountProtector::Delete_All_Pending_Orders()
 {
