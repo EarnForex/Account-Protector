@@ -5,8 +5,8 @@
 //+------------------------------------------------------------------+
 #property copyright "EarnForex.com"
 #property link      "https://www.earnforex.com/metatrader-expert-advisors/Account-Protector/"
-#property version   "1.07"
-string    Version = "1.07";
+#property version   "1.08"
+string    Version = "1.08";
 #property strict
 
 #property description "Protects account balance by applying given actions when set conditions trigger."
@@ -19,8 +19,10 @@ input int Slippage = 2; // Slippage
 input string LogFileName = "log.txt"; // Log file name
 input Enable EnableEmergencyButton = No; // Enable emergency button
 input bool PanelOnTopOfChart = true; // PanelOnTopOfChart: Draw chart as background?
-input bool DoNotResetConditions = false; // DoNotResetConditions: Don't reset conditions on trigger?
-input bool DoNotResetActions = false; // DoNotResetActions: if true, actions won't be reset on trigger.
+input bool DoNotDisableConditions = false; // DoNotDisableConditions: Don't disable conditions on trigger?
+input bool DoNotDisableActions = false; // DoNotDisableActions: Don't disable actions on trigger?
+input bool DoNotDisableEquityTS = false; // DoNotDisableEquityTS: Don't disable equity TS on trigger?
+input bool AlertOnEquityTS = false; // AlertOnEquityTS: Alert when equity trailing stop triggers?
 input bool DisableFloatLossRisePerc = false; // Disable floating loss rises % condition.
 input bool DisableFloatLossFallPerc = true; // Disable floating loss falls % condition.
 input bool DisableFloatLossRiseCurr = false; // Disable floating loss rises currency units condition.
@@ -51,6 +53,7 @@ input int DelayOrderClose = 0; // DelayOrderClose: Delay in milliseconds.
 input bool UseTotalVolume = false; // UseTotalVolume: enable if trading with many small trades and partial position closing.
 input double AdditionalFunds = 0; // AdditionalFunds: Added to balance, equity, and free margin.
 input string Instruments = ""; // Instruments: Default list of trading instruments for order filtering.
+input bool CloseMostDistantFirst = false; // CloseMostDistantFirst: Close most distant trades first?
 
 CAccountProtector ExtDialog;
 

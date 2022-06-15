@@ -76,7 +76,7 @@ private:
     double          m_DPIScale;
     bool            NoPanelMaximization; // Crutch variable to prevent panel maximization when Maximize() is called at the indicator's initialization.
     CArrayLong     *PartiallyClosedOrders; // Stores order tickets that have been partially closed by Eliminate_Orders().
-    double          PositionsByProfit[][2]; // Stores position (order) ticket and its floating profit/loss. Gets filled and sorted when some condition is met and actions are about to get triggered.
+    double          PositionsByProfit[][2]; // Stores position (order) ticket and its floating profit/loss. When CloseMostDistantFirst == true, the profit is replaced with absolute distance. Gets filled and sorted when some condition is met and actions are about to get triggered.
     ENUM_CONDITIONS TriggeredCondition; // Checked for position array sorting (when optimal) and for partial position closure cancellation when UseTotalVolume is enabled.
     double          ClosedVolume; // How much of the volume has already been closed - for partial closure when UseTotalVolume == true.
     double          TotalVolume; // Store the total volume of filtered trades.
@@ -399,7 +399,7 @@ EVENT_MAP_END(CAppDialog)
 CAccountProtector::CAccountProtector()
 {
     m_FileName = "AP_" + IntegerToString(ChartID()) + ".txt";
-    LogFile = -1;
+    LogFile = INVALID_HANDLE;
     QuantityClosedMarketOrders = 0;
     QuantityDeletedPendingOrders = 0;
     IsANeedToContinueClosingOrders = false;
@@ -3669,12 +3669,12 @@ void CAccountProtector::Close_All_Positions()
 
     // Check condition to know whether and how to sort PositionsByProfit.
     // Switching sorting modes because the array is traversed backwards - from total - 1 to 0.
-    if ((TriggeredCondition == Floating_loss_rises_to_perecentage) || (TriggeredCondition == Floating_loss_rises_to_currency_units) || (TriggeredCondition == Floating_loss_rises_to_points)) ArraySort(PositionsByProfit, WHOLE_ARRAY, 0, MODE_DESCEND);
+    if (CloseMostDistantFirst) ArraySort(PositionsByProfit, WHOLE_ARRAY, 0, MODE_ASCEND); // Regardless of condition.
+    else if ((TriggeredCondition == Floating_loss_rises_to_perecentage) || (TriggeredCondition == Floating_loss_rises_to_currency_units) || (TriggeredCondition == Floating_loss_rises_to_points)) ArraySort(PositionsByProfit, WHOLE_ARRAY, 0, MODE_DESCEND);
     else if ((TriggeredCondition == Floating_profit_rises_to_perecentage) || (TriggeredCondition == Floating_profit_rises_to_currency_units) || (TriggeredCondition == Floating_profit_rises_to_points)) ArraySort(PositionsByProfit, WHOLE_ARRAY, 0, MODE_ASCEND);
     // Otherwise no sorting needed.
 
     int total = ArrayRange(PositionsByProfit, 0); // We already have an array with all tickets.
-
     // Closing market orders. Going backwards to delete an order from the array after closing it.
     for (int i = total - 1; i >= 0; i--)
     {
@@ -4088,14 +4088,21 @@ void CAccountProtector::EquityTrailing()
         string AdditionalFunds_Asterisk = "";
         if (AdditionalFunds != 0) AdditionalFunds_Asterisk = "*";
         Logging("Account Protector: Equity stop-loss of " + DoubleToString(sets.doubleCurrentEquityStopLoss, 2) + " hit at " + DoubleToString(AE, 2) + AdditionalFunds_Asterisk + ". Closing all positions.");
+        if (AlertOnEquityTS) Alert("Account Protector: Equity stop-loss of " + DoubleToString(sets.doubleCurrentEquityStopLoss, 2) + " hit at " + DoubleToString(AE, 2) + AdditionalFunds_Asterisk + ". Closing all positions.");
         Logging_Condition_Is_Met();
         Close_All_Positions();
 
-        sets.boolEquityTrailingStop = false;
-        m_ChkEquityTrailingStop.Checked(false);
-
-        m_LblCurrentEquityStopLoss.Hide();
-        m_BtnResetEquityStopLoss.Hide();
+        if (!DoNotDisableEquityTS)
+        {
+            sets.boolEquityTrailingStop = false;
+            m_ChkEquityTrailingStop.Checked(false);
+            m_LblCurrentEquityStopLoss.Hide();
+            m_BtnResetEquityStopLoss.Hide();
+        }
+        else
+        {
+            sets.doubleCurrentEquityStopLoss = 0;
+        }
 
         SaveSettingsOnDisk();
         MoveAndResize();
@@ -4236,8 +4243,8 @@ void CAccountProtector::Logging_Condition_Is_Met()
     double floating_profit = 0;
     ClosedVolume = 0;
     TotalVolume = 0;
-    if (LogFileName == "") return;
     for (i = 0; i < OrdersTotal(); i++)
+    {
         if (!OrderSelect(i, SELECT_BY_POS)) Logging("Account Protector: OrderSelect failed " + IntegerToString(GetLastError()));
         else
         {
@@ -4255,7 +4262,8 @@ void CAccountProtector::Logging_Condition_Is_Met()
                     floating_profit += order_floating_profit;
                     market++;
                     ArrayResize(PositionsByProfit, market, 100); // Reserve extra physical memory to increase the resizing speed.
-                    PositionsByProfit[market - 1][0] = order_floating_profit;
+                    if (!CloseMostDistantFirst) PositionsByProfit[market - 1][0] = order_floating_profit; // Normal profit.
+                    else PositionsByProfit[market - 1][0] = MathAbs(OrderOpenPrice() - OrderClosePrice()) / SymbolInfoDouble(OrderSymbol(), SYMBOL_POINT); 
                     PositionsByProfit[market - 1][1] = OrderTicket();
                     TotalVolume += OrderLots();
                 }
@@ -4263,6 +4271,9 @@ void CAccountProtector::Logging_Condition_Is_Met()
                 break; // Order already processed - no point to process this order with other magic numbers.
             }
         }
+    }
+    
+    if (LogFileName == "") return;
 
     string AdditionalFunds_Asterisk = "";
     if (AdditionalFunds != 0) AdditionalFunds_Asterisk = "*";
@@ -4329,7 +4340,7 @@ void CAccountProtector::CheckOneCondition(T &SettingsEditValue, bool &SettingsCh
         Logging("CONDITION IS MET: " + EventDescription);
         TriggeredCondition = triggered_condition;
         Trigger_Actions(EventDescription);
-        if (!DoNotResetConditions)
+        if (!DoNotDisableConditions)
         {
             SettingsCheckboxValue = false;
             SettingsEditValue = 0;
@@ -4597,7 +4608,7 @@ void CAccountProtector::Trigger_Actions(string title)
     // Close all positions.
     if (sets.ClosePos)
     {
-        if (!DoNotResetActions) sets.ClosePos = false;
+        if (!DoNotDisableActions) sets.ClosePos = false;
         Logging("ACTION IS TAKEN: Close positions (" + DoubleToString(sets.doubleClosePercentage, 2) + "% of " + EnumToString(sets.CloseWhichPositions) + ").");
         PartiallyClosedOrders.Clear();
         Close_All_Positions();
@@ -4608,7 +4619,7 @@ void CAccountProtector::Trigger_Actions(string title)
     // Delete all pending orders.
     if (sets.DeletePend)
     {
-        if (!DoNotResetActions) sets.DeletePend = false;
+        if (!DoNotDisableActions) sets.DeletePend = false;
         Logging("ACTION IS TAKEN: Delete all pending orders.");
         Delete_All_Pending_Orders();
         sets.Triggered = true;
@@ -4618,7 +4629,7 @@ void CAccountProtector::Trigger_Actions(string title)
     // Disable autotrading.
     if (sets.DisAuto)
     {
-        if (!DoNotResetActions) sets.DisAuto = false;
+        if (!DoNotDisableActions) sets.DisAuto = false;
         Logging("ACTION IS TAKEN: Disable autotrading.");
         // Toggle AutoTrading button. "2" in GetAncestor call is the "root window".
         if (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) SendMessageW(GetAncestor(WindowHandle(Symbol(), Period()), 2), WM_COMMAND, 33020, 0);
@@ -4630,7 +4641,7 @@ void CAccountProtector::Trigger_Actions(string title)
     // Send emails.
     if (sets.SendMails)
     {
-        if (!DoNotResetActions) sets.SendMails = false;
+        if (!DoNotDisableActions) sets.SendMails = false;
         Logging("ACTION IS TAKEN: Send email.");
         PrepareSubjectBody(subject, body, title, TimeCurrent(), QuantityClosedMarketOrders, QuantityDeletedPendingOrders, WasAutoTradingDisabled, WasNotificationSent, false, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots);
         SendMailFunction(subject, body);
@@ -4641,7 +4652,7 @@ void CAccountProtector::Trigger_Actions(string title)
     // Send push notifications.
     if (sets.SendNotif)
     {
-        if (!DoNotResetActions) sets.SendNotif = false;
+        if (!DoNotDisableActions) sets.SendNotif = false;
         Logging("ACTION IS TAKEN: Send push notifications.");
         PrepareSubjectBody(subject, body, title, TimeCurrent(), QuantityClosedMarketOrders, QuantityDeletedPendingOrders, WasAutoTradingDisabled, false, WasMailSent, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots, true);
         SendNotificationFunction(subject, body);
@@ -4652,7 +4663,7 @@ void CAccountProtector::Trigger_Actions(string title)
     // Close platform.
     if (sets.ClosePlatform)
     {
-        if (!DoNotResetActions) sets.ClosePlatform = false;
+        if (!DoNotDisableActions) sets.ClosePlatform = false;
         Logging("ACTION IS TAKEN: Close platform.");
         TerminalClose(0);
     }
@@ -4660,7 +4671,7 @@ void CAccountProtector::Trigger_Actions(string title)
     // Enable autotrading.
     if (sets.EnableAuto)
     {
-        if (!DoNotResetActions) sets.EnableAuto = false;
+        if (!DoNotDisableActions) sets.EnableAuto = false;
         Logging("ACTION IS TAKEN: Enable autotrading.");
         // Toggle AutoTrading button. "2" in GetAncestor call is the "root window".
         if (!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) SendMessageW(GetAncestor(WindowHandle(Symbol(), Period()), 2), WM_COMMAND, 33020, 0);
@@ -4671,7 +4682,7 @@ void CAccountProtector::Trigger_Actions(string title)
     // Recapture snapshots.
     if (sets.RecaptureSnapshots)
     {
-        if (!DoNotResetActions) sets.RecaptureSnapshots = false;
+        if (!DoNotDisableActions) sets.RecaptureSnapshots = false;
         Logging("ACTION IS TAKEN: Recapture snapshots.");
         UpdateEquitySnapshot();
         UpdateMarginSnapshot();
@@ -4688,14 +4699,14 @@ void CAccountProtector::Logging(string message)
 {
     if (StringLen(LogFileName) > 0)
     {
-        string filename = LogFileName + ".log";
-        if (LogFile < 0) LogFile = FileOpen(filename, FILE_CSV | FILE_READ | FILE_WRITE, ' ');
-        if (LogFile < 1) Alert("Cannot open file for logging: ", filename, ".");
+        string filename = LogFileName;
+        if (LogFile == INVALID_HANDLE) LogFile = FileOpen(filename, FILE_CSV | FILE_READ | FILE_WRITE, ' ');
+        if (LogFile == INVALID_HANDLE) Alert("Cannot open file for logging: ", filename, ".");
         else if (FileSeek(LogFile, 0, SEEK_END))
         {
             FileWrite(LogFile, TimeToString(TimeLocal(), TIME_DATE | TIME_MINUTES | TIME_SECONDS), " ", message);
             FileClose(LogFile);
-            LogFile = -1;
+            LogFile = INVALID_HANDLE;
         }
         else Alert("Unexpected error accessing file: ", filename, ".");
     }
