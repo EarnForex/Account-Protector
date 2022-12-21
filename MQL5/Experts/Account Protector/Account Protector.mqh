@@ -59,7 +59,7 @@ private:
     // Actions Tab - Labels
     CLabel          m_LblClosePosSuffix, m_LblClosePosPostfix;
     // Actions Tab - CheckBoxes
-    CCheckBox       m_ChkClosePos, m_ChkDeletePend, m_ChkDisAuto, m_ChkSendMails, m_ChkSendNotif, m_ChkClosePlatform, m_ChkEnableAuto, m_ChkRecaptureSnapshots;
+    CCheckBox       m_ChkClosePos, m_ChkDeletePend, m_ChkDisAuto, m_ChkSendMails, m_ChkSendNotif, m_ChkClosePlatform, m_ChkEnableAuto, m_ChkRecaptureSnapshots, m_ChkCloseAllOtherCharts;
     // Actions Tab - Edits
     CEdit           m_EdtClosePercentage;
     // Actions Tab - Buttons
@@ -69,7 +69,7 @@ private:
     int             LogFile, QuantityClosedPositions, QuantityDeletedPendingOrders, magic_array_counter, MagicNumbers_array[], instruments_array_counter;
     string          Instruments_array[];
     bool            IsANeedToContinueClosingPositions, IsANeedToContinueDeletingPendingOrders;
-    bool            WasAutoTradingDisabled, WasMailSent, WasNotificationSent, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots;
+    bool            WasAutoTradingDisabled, WasMailSent, WasNotificationSent, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots, WasCloseAllOtherCharts;
     double          m_DPIScale;
     bool            NoPanelMaximization; // Crutch variable to prevent panel maximization when Maximize() is called at the indicator's initialization.
     CArrayLong     *PartiallyClosedOrders; // Stores order tickets that have been partially closed by Eliminate_Orders().
@@ -142,9 +142,10 @@ private:
     int             Close_Current_Position(const ulong ticket);
     void            Trigger_Actions(const string title);
     void            Logging_Condition_Is_Met();
-    void            PrepareSubjectBody(string &subject, string &body, const string title, const datetime timestamp, const int pos_closed, const int pend_deleted, const bool autotrade_dis, const bool push_sent, const bool mail_sent, const bool platf_closed, const bool autotrade_enabled, const bool snapshots_recaptured, const bool short_body = false);
+    void            PrepareSubjectBody(string &subject, string &body, const string title, const datetime timestamp, const int pos_closed, const int pend_deleted, const bool autotrade_dis, const bool push_sent, const bool mail_sent, const bool platf_closed, const bool autotrade_enabled, const bool snapshots_recaptured, const bool other_charts_closed, const bool short_body = false);
     void            SendMailFunction(string subject, string body);
     void            SendNotificationFunction(string subject, string body);
+    void            CloseAllOtherCharts();
     template<typename T>
     void            CheckOneCondition(T &SettingsEditValue, bool &SettingsCheckboxValue, const string EventDescription, const ENUM_CONDITIONS triggered_condition = Other_condition);
     void            ProcessMagicNumbers();
@@ -226,6 +227,7 @@ private:
     void OnChangeChkClosePlatform();
     void OnChangeChkEnableAuto();
     void OnChangeChkRecaptureSnapshots();
+    void OnChangeChkCloseAllOtherCharts();
     void OnEndEditLossPerBalance();
     void OnEndEditLossPerBalanceReverse();
     void OnEndEditLossQuanUnits();
@@ -272,9 +274,13 @@ private:
     template<typename T>
     void EditChangeConditions(T& SettingsEditValue, CEdit& Edit, const string FieldName, const double RangeMaximum = 0);
     void EditChangeMain(int& SettingsEditValue, CEdit& Edit, const string FieldName);
+    void EditChangeMain(double& SettingsEditValue, CEdit& Edit, const string FieldName);
     void RefreshConditions(const bool SettingsCheckBoxValue, const double SettingsEditValue, CCheckBox& CheckBox, CEdit& Edit, const int decimal_places);
     void UpdateEquitySnapshot();
     void UpdateMarginSnapshot();
+    void UpdateEquitySnapshotPanelFields();
+    void UpdateMarginSnapshotPanelFields();
+    void LoadGlobalSnapshots();
 
     // Circumvent the bug with ChartEvent() poor handling hidden controls.
     void HideControl(CWnd& obj);
@@ -358,6 +364,7 @@ ON_EVENT(ON_CHANGE, m_ChkSendNotif, OnChangeChkSendNotif)
 ON_EVENT(ON_CHANGE, m_ChkClosePlatform, OnChangeChkClosePlatform)
 ON_EVENT(ON_CHANGE, m_ChkEnableAuto, OnChangeChkEnableAuto)
 ON_EVENT(ON_CHANGE, m_ChkRecaptureSnapshots, OnChangeChkRecaptureSnapshots)
+ON_EVENT(ON_CHANGE, m_ChkCloseAllOtherCharts, OnChangeChkCloseAllOtherCharts)
 ON_EVENT(ON_END_EDIT, m_EdtLossPerBalance, OnEndEditLossPerBalance)
 ON_EVENT(ON_END_EDIT, m_EdtLossPerBalanceReverse, OnEndEditLossPerBalanceReverse)
 ON_EVENT(ON_END_EDIT, m_EdtLossQuanUnits, OnEndEditLossQuanUnits)
@@ -414,6 +421,7 @@ CAccountProtector::CAccountProtector()
     WasPlatformClosed = false;
     WasAutoTradingEnabled = false;
     WasRecapturedSnapshots = false;
+    WasCloseAllOtherCharts = false;
     NoPanelMaximization = false;
     remember_left = -1;
     remember_top = -1;
@@ -835,13 +843,13 @@ bool CAccountProtector::CreateObjects()
 
     if (!DisableDailyProfitLossPercGE)
     {
-        if (!CheckBoxCreate(m_ChkDailyProfitLossPercGE, first_column_start, y, panel_end, y + element_height, "m_ChkDailyProfitLossPercGE", "Daily profit/loss >= %"))            return false;
+        if (!CheckBoxCreate(m_ChkDailyProfitLossPercGE, first_column_start, y, panel_end, y + element_height, "m_ChkDailyProfitLossPercGE", "Daily profit/loss >= % of balance"))            return false;
         if (!EditCreate(m_EdtDailyProfitLossPercGE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtDailyProfitLossPercGE", "0"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableDailyProfitLossPercLE)
     {
-        if (!CheckBoxCreate(m_ChkDailyProfitLossPercLE, first_column_start, y, panel_end, y + element_height, "m_ChkDailyProfitLossPercLE", "Daily profit/loss <= %"))            return false;
+        if (!CheckBoxCreate(m_ChkDailyProfitLossPercLE, first_column_start, y, panel_end, y + element_height, "m_ChkDailyProfitLossPercLE", "Daily profit/loss <= % of balance"))            return false;
         if (!EditCreate(m_EdtDailyProfitLossPercLE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtDailyProfitLossPercLE", "0"))   return false;
         y += element_height + v_spacing;
     }
@@ -867,6 +875,8 @@ bool CAccountProtector::CreateObjects()
     if (!CheckBoxCreate(m_ChkEnableAuto, first_column_start, y, panel_end, y + element_height, "m_ChkEnableAuto", "Enable autotrading"))          return false;
     y += element_height + v_spacing;
     if (!CheckBoxCreate(m_ChkRecaptureSnapshots, first_column_start, y, panel_end, y + element_height, "m_ChkRecaptureSnapshots", "Recapture snapshots"))             return false;
+    y += element_height + v_spacing;
+    if (!CheckBoxCreate(m_ChkCloseAllOtherCharts, first_column_start, y, panel_end, y + element_height, "m_ChkCloseAllOtherCharts", "Close all other charts"))             return false;
 
     InitObjects();
     return true;
@@ -1041,7 +1051,7 @@ void CAccountProtector::MoveAndResize()
     }
     else if (sets.SelectedTab == ActionsTab)
     {
-        ref_point = m_ChkRecaptureSnapshots.Top();
+        ref_point = m_ChkCloseAllOtherCharts.Top();
     }
 
     m_LblURL.Move(m_LblURL.Left(), ref_point + col_height);
@@ -1080,6 +1090,7 @@ void CAccountProtector::Maximize()
 // Refreshes Status, Spread-value, and TimeLeft-value.
 bool CAccountProtector::RefreshValues()
 {
+    if (GlobalSnapshots) LoadGlobalSnapshots();
     Check_Status();
     if (!m_LblSpread.Text("Spread: " + DoubleToString((double)SymbolInfoInteger(Symbol(), SYMBOL_SPREAD) * SymbolInfoDouble(Symbol(), SYMBOL_POINT), (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS)))) return false;
     if (m_ChkUseTimer.Checked())
@@ -1089,7 +1100,14 @@ bool CAccountProtector::RefreshValues()
     }
     else m_LblTimeLeft.Text("Time left: ---");
     string account_currency = AccountInfoString(ACCOUNT_CURRENCY);
-    if (account_currency != "") m_ChkEquityTrailingStop.Text("Equity trailing stop (hidden), " + account_currency + ":");
+    if (account_currency != "")
+    {
+        m_ChkEquityTrailingStop.Text("Equity trailing stop (hidden), " + account_currency + ":");
+        if (BreakEvenProfitInCurrencyUnits)
+        {
+            m_ChkBreakEven.Text("Profit value (" + account_currency + ") to set SL to breakeven:");
+        }
+    }
 
     if (IsANeedToContinueClosingPositions) Close_All_Positions();
     if (IsANeedToContinueDeletingPendingOrders) Delete_All_Pending_Orders();
@@ -1128,7 +1146,8 @@ void CAccountProtector::RefreshPanelControls()
     RefreshConditions(sets.boolTrailingStep, sets.intTrailingStep, m_ChkTrailingStep, m_EdtTrailingStep, 0);
 
     // Refresh breakeven fields.
-    RefreshConditions(sets.boolBreakEven, sets.intBreakEven, m_ChkBreakEven, m_EdtBreakEven, 0);
+    if (!BreakEvenProfitInCurrencyUnits) RefreshConditions(sets.boolBreakEven, sets.intBreakEven, m_ChkBreakEven, m_EdtBreakEven, 0);
+    else RefreshConditions(sets.boolBreakEven, sets.doubleBreakEven, m_ChkBreakEven, m_EdtBreakEven, 2);
 
     // Refresh breakeven extra fields.
     RefreshConditions(sets.boolBreakEvenExtra, sets.intBreakEvenExtra, m_ChkBreakEvenExtra, m_EdtBreakEvenExtra, 0);
@@ -1321,6 +1340,9 @@ void CAccountProtector::RefreshPanelControls()
 
     // Refresh "Recapture snapshots" checkbox.
     m_ChkRecaptureSnapshots.Checked(sets.RecaptureSnapshots);
+
+    // Refresh "Close all other charts" checkbox.
+    m_ChkCloseAllOtherCharts.Checked(sets.CloseAllOtherCharts);
 
     // Refresh status label.
     if (sets.Triggered) m_LblStatus.Text("Status: Triggered at " + sets.TriggeredTime);
@@ -1616,6 +1638,7 @@ void CAccountProtector::HideActions()
     HideControl(m_ChkClosePlatform);
     HideControl(m_ChkEnableAuto);
     HideControl(m_ChkRecaptureSnapshots);
+    HideControl(m_ChkCloseAllOtherCharts);
 }
 
 // Shows design-elements of TabButton "Actions".
@@ -1634,6 +1657,7 @@ void CAccountProtector::ShowActions()
     ShowControl(m_ChkClosePlatform);
     ShowControl(m_ChkEnableAuto);
     ShowControl(m_ChkRecaptureSnapshots);
+    ShowControl(m_ChkCloseAllOtherCharts);
 }
 
 //+------------------------------------------------------------------+
@@ -1886,10 +1910,18 @@ void CAccountProtector::OnClickBtnNewSnapEquity()
 // Actual equity snapshot update - can be called from different places.
 void CAccountProtector::UpdateEquitySnapshot()
 {
-    string AdditionalFunds_Asterisk = "";
     sets.SnapEquity = AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds;;
-    if (AdditionalFunds != 0) AdditionalFunds_Asterisk = "*";
     sets.SnapEquityTime = TimeToString(TimeCurrent(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
+    UpdateEquitySnapshotPanelFields();
+    if (GlobalSnapshots) SaveGlobalEquitySnapshots();
+
+}
+
+// Updates panel fields.
+void CAccountProtector::UpdateEquitySnapshotPanelFields()
+{
+    string AdditionalFunds_Asterisk = "";
+    if (AdditionalFunds != 0) AdditionalFunds_Asterisk = "*";
     m_LblSnapEquity.Text("Snapshot of Equity: " + DoubleToString(sets.SnapEquity, AccountCurrencyDigits) + " (" + sets.SnapEquityTime + ")" + AdditionalFunds_Asterisk);
     m_ChkEquityLessPerSnap.Text("Equity <= % of Snapshot: (" + DoubleToString(sets.SnapEquity, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk);
     m_ChkEquityGrPerSnap.Text("Equity >= % of Snapshot: (" + DoubleToString(sets.SnapEquity, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk);
@@ -1907,10 +1939,17 @@ void CAccountProtector::OnClickBtnNewSnapMargin()
 // Actual margin snapshot update - can be called from different places.
 void CAccountProtector::UpdateMarginSnapshot()
 {
-    string AdditionalFunds_Asterisk = "";
     sets.SnapMargin = AccountInfoDouble(ACCOUNT_MARGIN_FREE) + AdditionalFunds;
-    if (AdditionalFunds != 0) AdditionalFunds_Asterisk = "*";
     sets.SnapMarginTime = TimeToString(TimeCurrent(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
+    UpdateMarginSnapshotPanelFields();
+    if (GlobalSnapshots) SaveGlobalMarginSnapshots();
+}
+
+// Updates panel fields.
+void CAccountProtector::UpdateMarginSnapshotPanelFields()
+{
+    string AdditionalFunds_Asterisk = "";
+    if (AdditionalFunds != 0) AdditionalFunds_Asterisk = "*";
     m_LblSnapMargin.Text("Snapshot of Free Margin: " + DoubleToString(sets.SnapMargin, AccountCurrencyDigits) + " (" + sets.SnapMarginTime + ")" + AdditionalFunds_Asterisk);
     m_ChkMarginLessPerSnap.Text("Free Margin <= % of Snapshot: (" + DoubleToString(sets.SnapMargin, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk);
     m_ChkMarginGrPerSnap.Text("Free Margin >= % of Snapshot: (" + DoubleToString(sets.SnapMargin, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk);
@@ -2333,6 +2372,12 @@ void CAccountProtector::OnChangeChkRecaptureSnapshots()
     CheckboxChangeActions(sets.RecaptureSnapshots, m_ChkRecaptureSnapshots);
 }
 
+// Changes Checkbox of Action "Close all other charts".
+void CAccountProtector::OnChangeChkCloseAllOtherCharts()
+{
+    CheckboxChangeActions(sets.CloseAllOtherCharts, m_ChkCloseAllOtherCharts);
+}
+
 // Supplementary function to process changes to edit fields in the Conditions tab:
 // 1. Check emptiness.
 // 2. Check and log if double.
@@ -2557,13 +2602,13 @@ void CAccountProtector::OnEndEditDailyProfitLossPointsLE()
 // Processes edit of input-field of Condition "Daily profit/loss >= %".
 void CAccountProtector::OnEndEditDailyProfitLossPercGE()
 {
-    EditChangeConditions(sets.doubleDailyProfitLossPercGE, m_EdtDailyProfitLossPercGE, "Daily profit/loss >= %");
+    EditChangeConditions(sets.doubleDailyProfitLossPercGE, m_EdtDailyProfitLossPercGE, "Daily profit/loss >= % of balance");
 }
 
 // Processes edit of input-field of Condition "Daily profit/loss <= %".
 void CAccountProtector::OnEndEditDailyProfitLossPercLE()
 {
-    EditChangeConditions(sets.doubleDailyProfitLossPercLE, m_EdtDailyProfitLossPercLE, "Daily profit/loss <= %");
+    EditChangeConditions(sets.doubleDailyProfitLossPercLE, m_EdtDailyProfitLossPercLE, "Daily profit/loss <= % of balance");
 }
 
 // Processes edit of input-field for percentage of volume to be close in Action "Close Positions".
@@ -2618,6 +2663,23 @@ void CAccountProtector::EditChangeMain(int& SettingsEditValue, CEdit& Edit, cons
     }
 }
 
+// Double overload for BreakEven in currency units.
+void CAccountProtector::EditChangeMain(double& SettingsEditValue, CEdit& Edit, const string FieldName)
+{
+    double ValueFromEdit = (double)StringToDouble(Edit.Text());
+
+    if (!IsDouble(Edit.Text()))
+    {
+        Logging("Value is wrong: " + FieldName + ".");
+        LoadSettingsFromDisk();
+    }
+    else if (SettingsEditValue != ValueFromEdit)
+    {
+        SettingsEditValue = ValueFromEdit;
+        SaveSettingsOnDisk();
+    }
+}
+
 // Processes edit of input-field of Trailing Start.
 void CAccountProtector::OnEndEditTrailingStart()
 {
@@ -2633,7 +2695,8 @@ void CAccountProtector::OnEndEditTrailingStep()
 // Processes edit of input-field of Break Even.
 void CAccountProtector::OnEndEditBreakEven()
 {
-    EditChangeMain(sets.intBreakEven, m_EdtBreakEven, "Profit value (points) to move SL to breakeven");
+    if (!BreakEvenProfitInCurrencyUnits) EditChangeMain(sets.intBreakEven, m_EdtBreakEven, "Profit value (points) to set SL to breakeven");
+    else EditChangeMain(sets.doubleBreakEven, m_EdtBreakEven, "Profit value (" + AccountInfoString(ACCOUNT_CURRENCY) + ") to set SL to breakeven");
 }
 
 // Processes edit of input-field of Break Even Extra.
@@ -2766,6 +2829,8 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, sets.TimeLeft);
     FileWrite(fh, "TimeType");
     FileWrite(fh, IntegerToString(sets.intTimeType));
+    FileWrite(fh, "dtTimerLastTriggerTime");
+    FileWrite(fh, IntegerToString(sets.dtTimerLastTriggerTime));
     FileWrite(fh, "boolTrailingStart");
     FileWrite(fh, IntegerToString(sets.boolTrailingStart));
     FileWrite(fh, "intTrailingStart");
@@ -2778,6 +2843,8 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, IntegerToString(sets.boolBreakEven));
     FileWrite(fh, "intBreakEven");
     FileWrite(fh, IntegerToString(sets.intBreakEven));
+    FileWrite(fh, "doubleBreakEven");
+    FileWrite(fh, DoubleToString(sets.doubleBreakEven));
     FileWrite(fh, "boolBreakEvenExtra");
     FileWrite(fh, IntegerToString(sets.boolBreakEvenExtra));
     FileWrite(fh, "intBreakEvenExtra");
@@ -2968,6 +3035,8 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, IntegerToString(sets.EnableAuto));
     FileWrite(fh, "RecaptureSnapshots");
     FileWrite(fh, IntegerToString(sets.RecaptureSnapshots));
+    FileWrite(fh, "CloseAllOtherCharts");
+    FileWrite(fh, IntegerToString(sets.CloseAllOtherCharts));
     FileWrite(fh, "SelectedTab");
     FileWrite(fh, IntegerToString(sets.SelectedTab));
     FileWrite(fh, "Triggered");
@@ -3034,6 +3103,8 @@ bool CAccountProtector::LoadSettingsFromDisk()
             sets.TimeLeft = var_content;
         else if (var_name == "intTimeType")
             sets.intTimeType = (int)StringToInteger(var_content);
+        else if (var_name == "dtTimerLastTriggerTime")
+            sets.dtTimerLastTriggerTime = (datetime)StringToInteger(var_content);
         else if (var_name == "boolTrailingStart")
             sets.boolTrailingStart = (bool)StringToInteger(var_content);
         else if (var_name == "intTrailingStart")
@@ -3046,6 +3117,8 @@ bool CAccountProtector::LoadSettingsFromDisk()
             sets.boolBreakEven = (bool)StringToInteger(var_content);
         else if (var_name == "intBreakEven")
             sets.intBreakEven = (int)StringToInteger(var_content);
+        else if (var_name == "doubleBreakEven")
+            sets.doubleBreakEven = (double)StringToDouble(var_content);
         else if (var_name == "boolBreakEvenExtra")
             sets.boolBreakEvenExtra = (bool)StringToInteger(var_content);
         else if (var_name == "intBreakEvenExtra")
@@ -3390,10 +3463,12 @@ bool CAccountProtector::LoadSettingsFromDisk()
             sets.ClosePlatform = (bool)StringToInteger(var_content);
         else if (var_name == "EnableAuto")
             sets.EnableAuto = (bool)StringToInteger(var_content);
+        else if (var_name == "RecaptureSnapshots")
+            sets.RecaptureSnapshots = (bool)StringToInteger(var_content);
+        else if (var_name == "CloseAllOtherCharts")
+            sets.CloseAllOtherCharts = (bool)StringToInteger(var_content);
         else if (var_name == "SelectedTab")
             sets.SelectedTab = (TABS)StringToInteger(var_content);
-        else if (var_name == "RecaptureSnapshots")
-            sets.RecaptureSnapshots = (TABS)StringToInteger(var_content);
         else if (var_name == "Triggered")
             sets.Triggered = (bool)StringToInteger(var_content);
         else if (var_name == "TriggeredTime")
@@ -3509,7 +3584,15 @@ bool CAccountProtector::No_Condition()
 // Checks if there is no action set.
 bool CAccountProtector::No_Action()
 {
-    if ((!sets.ClosePos) && (!sets.DeletePend) && (!sets.DisAuto) && (!sets.SendMails) && (!sets.SendNotif) && (!sets.ClosePlatform) && (!sets.EnableAuto) && (!sets.RecaptureSnapshots)) return true;
+    if ((!sets.ClosePos) && 
+        (!sets.DeletePend) && 
+        (!sets.DisAuto) && 
+        (!sets.SendMails) && 
+        (!sets.SendNotif) && 
+        (!sets.ClosePlatform) && 
+        (!sets.EnableAuto) && 
+        (!sets.RecaptureSnapshots) &&
+        (!sets.CloseAllOtherCharts)) return true;
 
     return false;
 }
@@ -3606,6 +3689,8 @@ string CAccountProtector::NewTime()
 // Returns true if order should be filtered out based on its symbol and filter settings.
 bool CAccountProtector::CheckFilterSymbol(string order_symbol)
 {
+    if (sets.intInstrumentFilter == 0) return false;
+    else
     // Skip an order if instrument filter is set to 'Use only current trading instrument' and the Symbol is not the chart's current one.
     if (sets.intInstrumentFilter == 1)
     {
@@ -3616,6 +3701,7 @@ bool CAccountProtector::CheckFilterSymbol(string order_symbol)
     {
         if (order_symbol == Symbol()) return true;
     }
+    else
     {
         StringToLower(order_symbol);
         // Skip if using an "Include" list and the symbol IS NOT found among the listed ones.
@@ -3643,6 +3729,7 @@ bool CAccountProtector::CheckFilterSymbol(string order_symbol)
 // Returns true if order should be filtered out based on its comment and filter settings.
 bool CAccountProtector::CheckFilterComment(const string order_comment)
 {
+    if ((sets.intOrderCommentaryCondition == 0) && (StringCompare(sets.OrderCommentary, "") == 0)) return false; // No filter.
     // Skip an order if its commentary is not the same as filter value, and list view is set to "Equals".
     if ((order_comment != sets.OrderCommentary) && (sets.intOrderCommentaryCondition == 1)) return true;
     // Skip an order if its commentary is the same as filter value, and list view is set to "Not equal".
@@ -3703,21 +3790,24 @@ void CAccountProtector::Close_All_Positions()
     }
 
     // Check condition to know whether and how to sort PositionsByProfit.
-    if (CloseMostDistantFirst)
+    if (ArraySize(PositionsByProfit) > 0)
     {
-        // Regardless of condition.
-        DirectSorting = false;
-        ArraySort(PositionsByProfit);
-    }
-    else if ((TriggeredCondition == Floating_loss_rises_to_perecentage) || (TriggeredCondition == Floating_loss_rises_to_currency_units) || (TriggeredCondition == Floating_loss_rises_to_points))
-    {
-        DirectSorting = true;
-        ArraySort(PositionsByProfit);
-    }
-    else if ((TriggeredCondition == Floating_profit_rises_to_perecentage) || (TriggeredCondition == Floating_profit_rises_to_currency_units) || (TriggeredCondition == Floating_profit_rises_to_points))
-    {
-        DirectSorting = false;
-        ArraySort(PositionsByProfit);
+        if (CloseMostDistantFirst)
+        {
+            // Regardless of condition.
+            DirectSorting = false;
+            ArraySort(PositionsByProfit);
+        }
+        else if ((TriggeredCondition == Floating_loss_rises_to_perecentage) || (TriggeredCondition == Floating_loss_rises_to_currency_units) || (TriggeredCondition == Floating_loss_rises_to_points))
+        {
+            DirectSorting = true;
+            ArraySort(PositionsByProfit);
+        }
+        else if ((TriggeredCondition == Floating_profit_rises_to_perecentage) || (TriggeredCondition == Floating_profit_rises_to_currency_units) || (TriggeredCondition == Floating_profit_rises_to_points))
+        {
+            DirectSorting = false;
+            ArraySort(PositionsByProfit);
+        }
     }
     // Otherwise no sorting needed.
 
@@ -3739,9 +3829,9 @@ void CAccountProtector::Close_All_Positions()
         {
             // No filter check is required because PositionsByProfit contains already filtered orders.
             // Skip profitable positions if only losing ones should be closed.
-            if ((PositionGetDouble(POSITION_PROFIT) >= 0) && (sets.CloseWhichPositions == Losing)) continue;
+            if ((sets.CloseWhichPositions == Losing) && (PositionGetDouble(POSITION_PROFIT) >= 0)) continue;
             // Skip losing positions if only profitable ones should be closed.
-            if ((PositionGetDouble(POSITION_PROFIT) < 0) && (sets.CloseWhichPositions == Profitable)) continue;
+            if ((sets.CloseWhichPositions == Profitable) && (PositionGetDouble(POSITION_PROFIT) < 0)) continue;
             double position_volume = PositionGetDouble(POSITION_VOLUME);
             if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
             {
@@ -3795,9 +3885,9 @@ void CAccountProtector::Close_All_Positions()
         if (ticket == 0) continue; // A previously closed position.
         PositionSelectByTicket(ticket);
         // Skip profitable positions if only losing ones should be closed.
-        if ((PositionGetDouble(POSITION_PROFIT) >= 0) && (sets.CloseWhichPositions == Losing)) continue;
+        if ((sets.CloseWhichPositions == Losing) && (PositionGetDouble(POSITION_PROFIT) >= 0)) continue;
         // Skip losing positions if only profitable ones should be closed.
-        if ((PositionGetDouble(POSITION_PROFIT) < 0) && (sets.CloseWhichPositions == Profitable)) continue;
+        if ((sets.CloseWhichPositions == Profitable) && (PositionGetDouble(POSITION_PROFIT) < 0)) continue;
 
         if (sets.doubleClosePercentage < 100)
         {
@@ -3925,7 +4015,7 @@ void CAccountProtector::Delete_All_Pending_Orders()
             // Starting from -1 index to check for orders irrespective of their Magic numbers.
             for (int j = -1; j < magic_array_counter; j++)
             {
-                if (CheckFilterMagic(OrderGetInteger(ORDER_MAGIC), j)) continue;
+                if ((magic_array_counter > 0) && (CheckFilterMagic(OrderGetInteger(ORDER_MAGIC), j))) continue;
 
                 if ((OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_BUY_LIMIT) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_SELL_LIMIT) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_BUY_STOP) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_SELL_STOP) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_BUY_STOP_LIMIT) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_SELL_STOP_LIMIT))
                 {
@@ -3967,7 +4057,7 @@ void CAccountProtector::Delete_All_Pending_Orders()
         // Starting from -1 index to check for orders irrespective of their Magic numbers.
         for (int j = -1; j < magic_array_counter; j++)
         {
-            if (CheckFilterMagic(OrderGetInteger(ORDER_MAGIC), j)) continue;
+            if ((magic_array_counter > 0) && (CheckFilterMagic(OrderGetInteger(ORDER_MAGIC), j))) continue;
 
             if ((OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_BUY_LIMIT) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_SELL_LIMIT) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_BUY_STOP) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_SELL_STOP) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_BUY_STOP_LIMIT) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_SELL_STOP_LIMIT))
             {
@@ -4025,7 +4115,7 @@ void CAccountProtector::Trailing()
             // Starting from -1 index to check for positions irrespective of their Magic numbers.
             for (int j = -1; j < magic_array_counter; j++)
             {
-                if (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j)) continue;
+                if ((magic_array_counter > 0) && (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j))) continue;
 
                 if (sets.boolTrailingStart == 0) trailing_start = 0;
                 else trailing_start = sets.intTrailingStart * SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT);
@@ -4097,7 +4187,7 @@ void CAccountProtector::MoveToBreakEven()
 {
     double SL;
 
-    if ((!sets.boolBreakEven) || (sets.intBreakEven == 0)) return;
+    if ((!sets.boolBreakEven) || ((!BreakEvenProfitInCurrencyUnits) && (sets.intBreakEven == 0)) || ((BreakEvenProfitInCurrencyUnits) && (sets.doubleBreakEven == 0))) return;
     if ((!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) || (!TerminalInfoInteger(TERMINAL_CONNECTED)) || (!MQLInfoInteger(MQL_TRADE_ALLOWED))) return;
 
     for (int i = 0; i < PositionsTotal(); i++)
@@ -4113,11 +4203,12 @@ void CAccountProtector::MoveToBreakEven()
             // Starting from -1 index to check for positions irrespective of their Magic numbers.
             for (int j = -1; j < magic_array_counter; j++)
             {
-                if (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j)) continue;
+                if ((magic_array_counter > 0) && (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j))) continue;
 
                 if ((ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
                 {
-                    if (SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN) >= sets.intBreakEven * SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT))
+                    if (((!BreakEvenProfitInCurrencyUnits) && (SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN) >= sets.intBreakEven * SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT))) || // Points.
+                        ((BreakEvenProfitInCurrencyUnits) && (PositionGetDouble(POSITION_PROFIT) >= sets.doubleBreakEven))) // Currency units.
                     {
                         if ((!sets.boolBreakEvenExtra) || (sets.intBreakEvenExtra == 0)) SL = PositionGetDouble(POSITION_PRICE_OPEN);
                         else SL = PositionGetDouble(POSITION_PRICE_OPEN) + sets.intBreakEvenExtra * SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT);
@@ -4132,7 +4223,8 @@ void CAccountProtector::MoveToBreakEven()
                 }
                 else if ((ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
                 {
-                    if (PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK) >= sets.intBreakEven * SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT))
+                    if (((!BreakEvenProfitInCurrencyUnits) && (PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK) >= sets.intBreakEven * SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT))) || // Points.
+                        ((BreakEvenProfitInCurrencyUnits) && (PositionGetDouble(POSITION_PROFIT) >= sets.doubleBreakEven))) // Currency units.
                     {
                         if ((!sets.boolBreakEvenExtra) || (sets.intBreakEvenExtra == 0)) SL = PositionGetDouble(POSITION_PRICE_OPEN);
                         else SL = PositionGetDouble(POSITION_PRICE_OPEN) - sets.intBreakEvenExtra * SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT);
@@ -4209,12 +4301,14 @@ void CAccountProtector::Logging_Current_Settings()
     Logging("sets.TimerDayOfWeek = " + EnumToString(sets.TimerDayOfWeek));
     Logging("sets.TimeLeft = " + sets.TimeLeft);
     Logging("sets.intTimeType = " + IntegerToString(sets.intTimeType));
+    Logging("sets.dtTimerLastTriggerTime = " + TimeToString(sets.dtTimerLastTriggerTime));
     Logging("sets.boolTrailingStart = " + (string)sets.boolTrailingStart);
     Logging("sets.intTrailingStart = " + IntegerToString(sets.intTrailingStart));
     Logging("sets.boolTrailingStep = " + (string)sets.boolTrailingStep);
     Logging("sets.intTrailingStep = " + IntegerToString(sets.intTrailingStep));
     Logging("sets.boolBreakEven = " + (string)sets.boolBreakEven);
-    Logging("sets.intBreakEven = " + IntegerToString(sets.intBreakEven));
+    if (!BreakEvenProfitInCurrencyUnits) Logging("sets.intBreakEven = " + IntegerToString(sets.intBreakEven));
+    else Logging("sets.doubleBreakEven = " + DoubleToString(sets.doubleBreakEven));
     Logging("sets.boolBreakEvenExtra = " + (string)sets.boolBreakEvenExtra);
     Logging("sets.intBreakEvenExtra = " + IntegerToString(sets.intBreakEvenExtra));
     Logging("sets.SnapEquity = " + DoubleToString(sets.SnapEquity, AccountCurrencyDigits));
@@ -4307,6 +4401,7 @@ void CAccountProtector::Logging_Current_Settings()
     Logging("sets.ClosePlatform = " + IntegerToString(sets.ClosePlatform));
     Logging("sets.EnableAuto = " + IntegerToString(sets.EnableAuto));
     Logging("sets.RecaptureSnapshots = " + IntegerToString(sets.RecaptureSnapshots));
+    Logging("sets.CloseAllOtherCharts = " + IntegerToString(sets.CloseAllOtherCharts));
     Logging("sets.SelectedTab = " + EnumToString(sets.SelectedTab));
     Logging("sets.Log_file_name = " + LogFileName);
     Logging("------End Logging Current Parameters------");
@@ -4332,7 +4427,7 @@ void CAccountProtector::Logging_Condition_Is_Met()
 		// Starting from -1 index to check for positions irrespective of their Magic numbers.
 		for (int j = -1; j < magic_array_counter; j++)
 		{
-			if (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j)) continue;
+			if ((magic_array_counter > 0) && (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j))) continue;
             else if ((PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) || (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL))
             {
                 double position_floating_profit = PositionGetDouble(POSITION_PROFIT);
@@ -4359,7 +4454,7 @@ void CAccountProtector::Logging_Condition_Is_Met()
             // Starting from -1 index to check for orders irrespective of their Magic numbers.
             for (int j = -1; j < magic_array_counter; j++)
             {
-                if (CheckFilterMagic(OrderGetInteger(ORDER_MAGIC), j)) continue;
+                if ((magic_array_counter > 0) && (CheckFilterMagic(OrderGetInteger(ORDER_MAGIC), j))) continue;
                 if ((OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_BUY_LIMIT) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_SELL_LIMIT) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_BUY_STOP) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_SELL_STOP) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_BUY_STOP_LIMIT) || (OrderGetInteger(ORDER_TYPE) == ORDER_TYPE_SELL_STOP_LIMIT)) pending++;
                 break; // Order already processed - no point to process this order with other magic numbers.
             }
@@ -4379,7 +4474,7 @@ void CAccountProtector::Logging_Condition_Is_Met()
 }
 
 // Prepares subject and body texts.
-void CAccountProtector::PrepareSubjectBody(string &subject, string &body, const string title, const datetime timestamp, const int pos_closed, const int pend_deleted, const bool autotrade_dis, const bool push_sent, const bool mail_sent, const bool platf_closed, const bool autotrade_enabled, const bool snapshots_recaptured, const bool short_body = false)
+void CAccountProtector::PrepareSubjectBody(string &subject, string &body, const string title, const datetime timestamp, const int pos_closed, const int pend_deleted, const bool autotrade_dis, const bool push_sent, const bool mail_sent, const bool platf_closed, const bool autotrade_enabled, const bool snapshots_recaptured, const bool other_charts_closed, const bool short_body = false)
 {
     subject = AccountInfoString(ACCOUNT_COMPANY) + ", Account #" + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN)) + ": " + title;
     body = TimeToString(timestamp, TIME_DATE | TIME_MINUTES | TIME_SECONDS);
@@ -4402,6 +4497,7 @@ void CAccountProtector::PrepareSubjectBody(string &subject, string &body, const 
     if (platf_closed) body += "\r\nPlatform closed.";
     if (autotrade_enabled) body += "\r\nAutotrading enabled.";
     if (snapshots_recaptured) body += "\r\nSnapshots recaptured.";
+    if (other_charts_closed) body += "\r\nOther charts closed.";
     if (LogFileName != "") body += "\r\nSee " + LogFileName + " for details.";
     body += "\r\n";
     body += "\r\nGenerated by Account Protector v." + Version + " (https://www.earnforex.com/).";
@@ -4422,6 +4518,19 @@ void CAccountProtector::SendNotificationFunction(string subject, string body)
 
     if (!SendNotification(body)) Logging("Account Protector failed to send push notification about actions.");
     else Logging("Push notification about actions sent.");
+}
+
+// Close all charts except thecurrent one.
+void CAccountProtector::CloseAllOtherCharts()
+{
+    // Cycle through all charts starting from the first one.
+    for (long chart = ChartFirst(); chart >= 0; chart = ChartNext(chart))
+    {
+        if (chart != ChartID()) // Avoid closing the current chart.
+        {
+            ChartClose(chart);
+        }
+    }
 }
 
 // Checks one condition.
@@ -4469,7 +4578,7 @@ void CAccountProtector::CheckAllConditions()
         // Starting from -1 index to check for positions irrespective of their Magic numbers.
         for (int j = -1; j < magic_array_counter; j++)
         {
-            if (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j)) continue;
+            if ((magic_array_counter > 0) && (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j))) continue;
 
             floating_profit += PositionGetDouble(POSITION_PROFIT);
             if (sets.CountCommSwaps) floating_profit += HistoryDealGetDouble(ticket, DEAL_COMMISSION) + PositionGetDouble(POSITION_SWAP);
@@ -4514,7 +4623,7 @@ void CAccountProtector::CheckAllConditions()
             // Starting from -1 index to check for orders irrespective of their Magic numbers.
             for (int j = -1; j < magic_array_counter; j++)
             {
-                if (CheckFilterMagic(HistoryDealGetInteger(deal_ticket, DEAL_MAGIC), j)) continue;
+                if ((magic_array_counter > 0) && (CheckFilterMagic(HistoryDealGetInteger(deal_ticket, DEAL_MAGIC), j))) continue;
     
                 // Record all the deals to caclulate daily points profit/loss.
                 ArrayResize(exit_deal_tickets, cnt + 1, 100);
@@ -4561,7 +4670,8 @@ void CAccountProtector::CheckAllConditions()
         daily_profit_loss_units += floating_profit;
         daily_profit_loss_points += floating_profit_points;
         // Percentage of balance at the start of the day calculated by subtracting the current daily profit from the current balance.
-        daily_profit_loss_perc = daily_profit_loss_units / (AccountInfoDouble(ACCOUNT_BALANCE) - daily_profit_loss_units) * 100;
+        if (AccountInfoDouble(ACCOUNT_BALANCE) - daily_profit_loss_units != 0) daily_profit_loss_perc = daily_profit_loss_units / (AccountInfoDouble(ACCOUNT_BALANCE) - daily_profit_loss_units) * 100;
+        else daily_profit_loss_perc = 100; // Zero-divide protection
     }
 
     string AdditionalFunds_Asterisk = "";
@@ -4668,7 +4778,7 @@ void CAccountProtector::CheckAllConditions()
         CheckOneCondition(sets.doubleMarginLevelGE, sets.boolMarginLevelGE, "Margin level greater or equal to " + DoubleToString(sets.doubleMarginLevelGE, 2) + "%");
 
     // Margin level less or equal to <value>%.
-    if ((!DisableMarginLevelLE) && (AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) <= sets.doubleMarginLevelLE))
+    if ((!DisableMarginLevelLE) && (AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) <= sets.doubleMarginLevelLE) && (AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) != 0))
         CheckOneCondition(sets.doubleMarginLevelLE, sets.boolMarginLevelLE, "Margin level less or equal to " + DoubleToString(sets.doubleMarginLevelLE, 2) + "%");
 
     // Spread greater or equal to <value> points.
@@ -4697,19 +4807,20 @@ void CAccountProtector::CheckAllConditions()
 
     // Daily profit/loss greater or equal to <value> %.
     if ((!DisableDailyProfitLossPercGE) && (daily_profit_loss_perc >= sets.doubleDailyProfitLossPercGE))
-        CheckOneCondition(sets.doubleDailyProfitLossPercGE, sets.boolDailyProfitLossPercGE, "Daily profit/loss greater or equal to " + DoubleToString(sets.doubleDailyProfitLossPercGE, 2) + "%");
+        CheckOneCondition(sets.doubleDailyProfitLossPercGE, sets.boolDailyProfitLossPercGE, "Daily profit/loss greater or equal to " + DoubleToString(sets.doubleDailyProfitLossPercGE, 2) + "% of balance");
 
     // Daily profit/loss less or equal to <value> %.
     if ((!DisableDailyProfitLossPercLE) && (daily_profit_loss_perc <= sets.doubleDailyProfitLossPercLE))
-        CheckOneCondition(sets.doubleDailyProfitLossPercLE, sets.boolDailyProfitLossPercLE, "Daily profit/loss less or equal to " + DoubleToString(sets.doubleDailyProfitLossPercLE, 2) + "%");
+        CheckOneCondition(sets.doubleDailyProfitLossPercLE, sets.boolDailyProfitLossPercLE, "Daily profit/loss less or equal to " + DoubleToString(sets.doubleDailyProfitLossPercLE, 2) + "% of balance");
 
     // Timeout by timer.
-    if ((sets.UseTimer) && (sets.TimeLeft == "00:00"))
+    if ((sets.UseTimer) && (sets.TimeLeft == "00:00") && ((!DoNotDisableTimer) || (TimeLocal() - sets.dtTimerLastTriggerTime > 60))) // If DoNotDisableTimer == true, at least one minute should pass from the last trigger.
     {
         string EventDescription = "Timeout by timer";
         Logging("CONDITION IS MET: " + EventDescription);
         Trigger_Actions(EventDescription);
-        sets.UseTimer = false;
+        if (!DoNotDisableTimer) sets.UseTimer = false;
+        else sets.dtTimerLastTriggerTime = TimeLocal();
         SaveSettingsOnDisk();
         RefreshPanelControls();
     }
@@ -4738,6 +4849,9 @@ void CAccountProtector::Trigger_Actions(string title)
 
     if (sets.RecaptureSnapshots) WasRecapturedSnapshots = true;
     else WasRecapturedSnapshots = false;
+
+    if (sets.CloseAllOtherCharts) WasCloseAllOtherCharts = true;
+    else WasCloseAllOtherCharts = false;
 
     // Close all positions.
     if (sets.ClosePos)
@@ -4778,7 +4892,7 @@ void CAccountProtector::Trigger_Actions(string title)
     {
         if (!DoNotDisableActions) sets.SendMails = false;
         Logging("ACTION IS TAKEN: Send email.");
-        PrepareSubjectBody(subject, body, title, TimeCurrent(), QuantityClosedPositions, QuantityDeletedPendingOrders, WasAutoTradingDisabled, WasNotificationSent, false, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots);
+        PrepareSubjectBody(subject, body, title, TimeCurrent(), QuantityClosedPositions, QuantityDeletedPendingOrders, WasAutoTradingDisabled, WasNotificationSent, false, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots, WasCloseAllOtherCharts);
         SendMailFunction(subject, body);
         sets.Triggered = true;
         sets.TriggeredTime = TimeToString(TimeLocal(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
@@ -4825,6 +4939,16 @@ void CAccountProtector::Trigger_Actions(string title)
         sets.TriggeredTime = TimeToString(TimeLocal(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
     }
 
+    // Close all other charts.
+    if (sets.CloseAllOtherCharts)
+    {
+        if (!DoNotDisableActions) sets.CloseAllOtherCharts = false;
+        Logging("ACTION IS TAKEN: Close all other charts.");
+        CloseAllOtherCharts();
+        sets.Triggered = true;
+        sets.TriggeredTime = TimeToString(TimeLocal(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
+    }
+    
     SaveSettingsOnDisk();
     RefreshPanelControls();
 }
@@ -4966,6 +5090,46 @@ double CAccountProtector::CalculateOrderLots(const double lots, const string sym
     }
 
     return(volume);
+}
+
+// Load snapshots from global variables as set by the latest update by any other Account Protector instance.
+void CAccountProtector::LoadGlobalSnapshots()
+{
+    if (!GlobalVariableCheck("AP_EquitySnapshot")) return;
+    
+    double SE = GlobalVariableGet("AP_EquitySnapshot");
+    string SET = TimeToString((datetime)GlobalVariableGet("AP_EquitySnapshotTime"));
+    if ((sets.SnapEquity != SE) || (sets.SnapEquityTime != SET))
+    {
+        sets.SnapEquity = SE;
+        sets.SnapEquityTime = SET;
+        UpdateEquitySnapshotPanelFields();
+        SaveSettingsOnDisk();
+    }
+
+    double SM = GlobalVariableGet("AP_MarginSnapshot");
+    string SMT = TimeToString((datetime)GlobalVariableGet("AP_MarginSnapshotTime"));
+    if ((sets.SnapMargin != SM) || (sets.SnapMarginTime != SMT))
+    {
+        sets.SnapMargin = SM;
+        sets.SnapMarginTime = SMT;
+        UpdateMarginSnapshotPanelFields();
+        SaveSettingsOnDisk();
+    }
+}
+
+// Save equity snapshots to global variables for other instances of the Account Protector to read.
+void SaveGlobalEquitySnapshots()
+{
+    GlobalVariableSet("AP_EquitySnapshot", sets.SnapEquity);
+    GlobalVariableSet("AP_EquitySnapshotTime", double((datetime)sets.SnapEquityTime));
+}
+
+// Save margin snapshots to global variables for other instances of the Account Protector to read.
+void SaveGlobalMarginSnapshots()
+{
+    GlobalVariableSet("AP_MarginSnapshot", sets.SnapMargin);
+    GlobalVariableSet("AP_MarginSnapshotTime", double((datetime)sets.SnapMarginTime));
 }
 
 //+------------------------------------------------------------------+

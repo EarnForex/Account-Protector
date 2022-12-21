@@ -5,8 +5,8 @@
 //+------------------------------------------------------------------+
 #property copyright "EarnForex.com"
 #property link      "https://www.earnforex.com/metatrader-expert-advisors/Account-Protector/"
-#property version   "1.08"
-string    Version = "1.08";
+#property version   "1.09"
+string    Version = "1.09";
 #property strict
 
 #property description "Protects account balance by applying given actions when set conditions trigger."
@@ -22,6 +22,7 @@ input bool PanelOnTopOfChart = true; // PanelOnTopOfChart: Draw chart as backgro
 input bool DoNotDisableConditions = false; // DoNotDisableConditions: Don't disable conditions on trigger?
 input bool DoNotDisableActions = false; // DoNotDisableActions: Don't disable actions on trigger?
 input bool DoNotDisableEquityTS = false; // DoNotDisableEquityTS: Don't disable equity TS on trigger?
+input bool DoNotDisableTimer = false; // DoNotDisableTimer: Don't disable timer on trigger?
 input bool AlertOnEquityTS = false; // AlertOnEquityTS: Alert when equity trailing stop triggers?
 input bool DisableFloatLossRisePerc = false; // Disable floating loss rises % condition.
 input bool DisableFloatLossFallPerc = true; // Disable floating loss falls % condition.
@@ -54,6 +55,8 @@ input bool UseTotalVolume = false; // UseTotalVolume: enable if trading with man
 input double AdditionalFunds = 0; // AdditionalFunds: Added to balance, equity, and free margin.
 input string Instruments = ""; // Instruments: Default list of trading instruments for order filtering.
 input bool CloseMostDistantFirst = false; // CloseMostDistantFirst: Close most distant trades first?
+input bool BreakEvenProfitInCurrencyUnits = false; // BreakEvenProfitInCurrencyUnits: currency instead of points.
+input bool GlobalSnapshots = false; // GlobalSnapshots: AP instances share equity & margin snapshots.
 
 CAccountProtector ExtDialog;
 
@@ -71,12 +74,14 @@ int OnInit()
         sets.Timer = TimeToString(TimeCurrent() - 7200, TIME_MINUTES);
         sets.TimeLeft = "";
         sets.intTimeType = 0;
+        sets.dtTimerLastTriggerTime = 0;
         sets.boolTrailingStart = false;
         sets.intTrailingStart = 0;
         sets.boolTrailingStep = false;
         sets.intTrailingStep = 0;
         sets.boolBreakEven = false;
         sets.intBreakEven = 0;
+        sets.doubleBreakEven = 0;
         sets.boolBreakEvenExtra = false;
         sets.intBreakEvenExtra = 0;
         sets.boolEquityTrailingStop = false;
@@ -86,6 +91,11 @@ int OnInit()
         sets.SnapEquityTime = TimeToString(TimeCurrent(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
         sets.SnapMargin = AccountInfoDouble(ACCOUNT_MARGIN_FREE) + AdditionalFunds;
         sets.SnapMarginTime = TimeToString(TimeCurrent(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
+        if (GlobalSnapshots)
+        {
+            SaveGlobalEquitySnapshots();
+            SaveGlobalMarginSnapshots();
+        }
         sets.OrderCommentary = "";
         sets.intOrderCommentaryCondition = 0;
         sets.MagicNumbers = "";
@@ -173,6 +183,7 @@ int OnInit()
         sets.DisAuto = false;
         sets.EnableAuto = false;
         sets.RecaptureSnapshots = false;
+        sets.CloseAllOtherCharts = false;
         sets.SelectedTab = MainTab;
 
         ExtDialog.SilentLogging = true;

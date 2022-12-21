@@ -76,12 +76,14 @@ struct Settings
     string           Timer;
     string           TimeLeft;
     int              intTimeType;
+    datetime         dtTimerLastTriggerTime;
     bool             boolTrailingStart;
     int              intTrailingStart;
     bool             boolTrailingStep;
     int              intTrailingStep;
     bool             boolBreakEven;
     int              intBreakEven;
+    double           doubleBreakEven;
     bool             boolBreakEvenExtra;
     int              intBreakEvenExtra;
     bool             boolEquityTrailingStop;
@@ -177,6 +179,7 @@ struct Settings
     bool             ClosePlatform;
     bool             EnableAuto;
     bool             RecaptureSnapshots;
+    bool             CloseAllOtherCharts;
     TABS             SelectedTab;
     bool             Triggered;
     string           TriggeredTime;
