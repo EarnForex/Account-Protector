@@ -1,12 +1,12 @@
 //+------------------------------------------------------------------+
 //|                                            Account Protector.mq4 |
-//|                             Copyright © 2017-2022, EarnForex.com |
+//|                             Copyright © 2017-2023, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #property copyright "EarnForex.com"
 #property link      "https://www.earnforex.com/metatrader-expert-advisors/Account-Protector/"
-#property version   "1.09"
-string    Version = "1.09";
+#property version   "1.091"
+string    Version = "1.091";
 #property strict
 
 #property description "Protects account balance by applying given actions when set conditions trigger."
@@ -17,7 +17,7 @@ string    Version = "1.09";
 
 input int Slippage = 2; // Slippage
 input string LogFileName = "log.txt"; // Log file name
-input Enable EnableEmergencyButton = No; // Enable emergency button
+input bool EnableEmergencyButton = false; // Enable emergency button
 input bool PanelOnTopOfChart = true; // PanelOnTopOfChart: Draw chart as background?
 input bool DoNotDisableConditions = false; // DoNotDisableConditions: Don't disable conditions on trigger?
 input bool DoNotDisableActions = false; // DoNotDisableActions: Don't disable actions on trigger?
@@ -207,7 +207,7 @@ int OnInit()
             decimal_places = 2;
         }
         ExtDialog.Logging("Account Margin Call Level = " + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_SO_CALL), decimal_places) + units + ", Account Margin Stopout Level = " + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_SO_SO), decimal_places) + units);
-        ExtDialog.Logging("Enable Emergency Button = " + EnumToString((Enable)EnableEmergencyButton));
+        ExtDialog.Logging("Enable Emergency Button = " + IntegerToString(EnableEmergencyButton));
         ExtDialog.Logging("DelayOrderClose = " + IntegerToString(DelayOrderClose));
         ExtDialog.Logging("UseTotalVolume = " + IntegerToString(UseTotalVolume));
         ExtDialog.Logging("AdditionalBalance = " + DoubleToString(AdditionalFunds, 2));

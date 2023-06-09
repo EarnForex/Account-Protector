@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //|                                            Account Protector.mqh |
-//|                             Copyright © 2017-2022, EarnForex.com |
+//|                             Copyright © 2017-2023, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #include "Defines.mqh"
@@ -624,7 +624,7 @@ bool CAccountProtector::CreateObjects()
     y += element_height + v_spacing;
     if (!ButtonCreate(m_BtnNewSnapEquity, first_column_start, y, first_column_start + snap_button_width, y + element_height, "m_BtnNewSnapEquity", "New snapshot of equity")) return false;
     if (!ButtonCreate(m_BtnNewSnapMargin, first_column_start + snap_button_width + h_spacing, y, panel_farther_end, y + element_height, "m_BtnNewSnapMargin", "New snapshot of free margin")) return false;
-    if (EnableEmergencyButton == Yes)
+    if (EnableEmergencyButton)
     {
         y += element_height + 3 * v_spacing;
         if (!ButtonCreate(m_BtnEmergency, first_column_start, y, panel_farther_end, y + (int)(element_height * 2.5), "m_BtnEmergency", "Emergency button")) return false;
@@ -988,7 +988,7 @@ void CAccountProtector::MoveAndResize()
         m_LblSnapMargin.Move(m_LblSnapMargin.Left(), ref_point + 2 * col_height);
         m_BtnNewSnapEquity.Move(m_BtnNewSnapEquity.Left(), ref_point + 3 * col_height);
         m_BtnNewSnapMargin.Move(m_BtnNewSnapMargin.Left(), ref_point + 3 * col_height);
-        if (EnableEmergencyButton == Yes)
+        if (EnableEmergencyButton)
         {
             m_BtnEmergency.Move(m_BtnEmergency.Left(), ref_point + 4 * col_height);
             ref_point = m_BtnEmergency.Top() + (int)MathRound(30 * m_DPIScale);
@@ -4215,7 +4215,7 @@ void CAccountProtector::Logging_Current_Settings()
 {
     SilentLogging = true;
     Logging("Logging Current Parameters:");
-    Logging("EnableEmergencyButton = " + EnumToString((Enable)EnableEmergencyButton));
+    Logging("EnableEmergencyButton = " + IntegerToString(EnableEmergencyButton));
     Logging("sets.CountCommSwaps = " + (string)sets.CountCommSwaps);
     Logging("sets.UseTimer = " + (string)sets.UseTimer);
     Logging("sets.Timer = " + sets.Timer);

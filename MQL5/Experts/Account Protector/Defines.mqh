@@ -1,6 +1,6 @@
 ﻿//+------------------------------------------------------------------+
 //|                                                      Defines.mqh |
-//|                             Copyright © 2017-2022, EarnForex.com |
+//|                             Copyright © 2017-2023, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #include <Controls\Button.mqh>
@@ -15,12 +15,6 @@
 #define CONTROLS_EDIT_COLOR_DISABLE C'221,221,211'
 
 #define LOG_TIMER_VALUE_WRONG "Timer value is wrong. Time format: HH:MM."
-
-enum Enable
-{
-    No,
-    Yes
-};
 
 enum TABS
 {
