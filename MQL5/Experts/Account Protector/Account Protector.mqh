@@ -18,7 +18,7 @@ private:
     CButton         m_BtnTabMain, m_BtnTabFilters, m_BtnTabConditions, m_BtnTabActions;
 
     // Main Tab - Labels
-    CLabel          m_LblStatus, m_LblSpread, m_LblTimeLeft, m_LblSnapEquity, m_LblSnapMargin, m_LblURL, m_LblCurrentEquityStopLoss, m_LblDayOfWeek;
+    CLabel          m_LblOnOff, m_LblStatus, m_LblSpread, m_LblTimeLeft, m_LblSnapEquity, m_LblSnapMargin, m_LblURL, m_LblCurrentEquityStopLoss, m_LblDayOfWeek;
     // Main Tab - CheckBoxes
     CCheckBox       m_ChkCountCommSwaps, m_ChkUseTimer, m_ChkTrailingStart, m_ChkTrailingStep, m_ChkBreakEven, m_ChkBreakEvenExtra, m_ChkEquityTrailingStop;
     // Main Tab - Edits
@@ -26,10 +26,10 @@ private:
     // MainTab - Radio Group
     CRadioGroup     m_RgpTimeType;
     // Main Tab - Buttons
-    CButton         m_BtnNewSnapEquity, m_BtnResetEquityStopLoss, m_BtnNewSnapMargin, m_BtnEmergency, m_BtnDayOfWeek;
+    CButton         m_BtnOnOff, m_BtnNewSnapEquity, m_BtnResetEquityStopLoss, m_BtnNewSnapMargin, m_BtnEmergency, m_BtnDayOfWeek;
 
     // Filters Tab - Labels
-    CLabel          m_LblMagics, m_LblOrderCommentary, m_LblInstruments;
+    CLabel          m_LblMagics, m_LblOrderCommentary, m_LblInstruments, m_LblOrderDirection;
     // Filters Tab - CheckBoxes
     CCheckBox       m_ChkExcludeMagics, m_ChkIgnoreLossTrades, m_ChkIgnoreProfitTrades;
     // Filters Tab - Edits
@@ -39,7 +39,7 @@ private:
     // Filters Tab - Radio Group
     CRadioGroup     m_RgpInstrumentFilter;
     // Filters Tab - ComboBox
-    CComboBox       m_CbxOrderCommentaryCondition;
+    CComboBox       m_CbxOrderCommentaryCondition, m_CbxOrderDirection;
 
     // Conditions Tab - CheckBoxes
     CCheckBox       m_ChkLossPerBalance, m_ChkLossQuanUnits, m_ChkLossPoints, m_ChkProfPerBalance, m_ChkProfQuanUnits, m_ChkProfPoints;
@@ -48,6 +48,7 @@ private:
     CCheckBox       m_ChkMarginLessUnits, m_ChkMarginGrUnits, m_ChkMarginLessPerSnap, m_ChkMarginGrPerSnap;
     CCheckBox       m_ChkPriceGE, m_ChkPriceLE, m_ChkMarginLevelGE, m_ChkMarginLevelLE, m_ChkSpreadGE, m_ChkSpreadLE;
     CCheckBox       m_ChkDailyProfitLossUnitsGE, m_ChkDailyProfitLossUnitsLE, m_ChkDailyProfitLossPointsGE, m_ChkDailyProfitLossPointsLE, m_ChkDailyProfitLossPercGE, m_ChkDailyProfitLossPercLE;
+    CCheckBox       m_ChkNumberOfPositionsGE, m_ChkNumberOfOrdersGE, m_ChkNumberOfPositionsLE, m_ChkNumberOfOrdersLE;
     // Conditions Tab - Edits
     CEdit           m_EdtLossPerBalance, m_EdtLossQuanUnits, m_EdtLossPoints, m_EdtProfPerBalance, m_EdtProfQuanUnits, m_EdtProfPoints;
     CEdit           m_EdtLossPerBalanceReverse, m_EdtLossQuanUnitsReverse, m_EdtLossPointsReverse, m_EdtProfPerBalanceReverse, m_EdtProfQuanUnitsReverse, m_EdtProfPointsReverse;
@@ -55,6 +56,7 @@ private:
     CEdit           m_EdtMarginLessUnits, m_EdtMarginGrUnits, m_EdtMarginLessPerSnap, m_EdtMarginGrPerSnap;
     CEdit           m_EdtPriceGE, m_EdtPriceLE, m_EdtMarginLevelGE, m_EdtMarginLevelLE, m_EdtSpreadGE, m_EdtSpreadLE;
     CEdit           m_EdtDailyProfitLossUnitsGE, m_EdtDailyProfitLossUnitsLE, m_EdtDailyProfitLossPointsGE, m_EdtDailyProfitLossPointsLE, m_EdtDailyProfitLossPercGE, m_EdtDailyProfitLossPercLE;
+    CEdit           m_EdtNumberOfPositionsGE, m_EdtNumberOfOrdersGE, m_EdtNumberOfPositionsLE, m_EdtNumberOfOrdersLE;
 
     // Actions Tab - Labels
     CLabel          m_LblClosePosSuffix, m_LblClosePosPostfix;
@@ -77,6 +79,8 @@ private:
     ENUM_CONDITIONS TriggeredCondition; // Checked for position array sorting (when optimal) and for partial position closure cancellation when UseTotalVolume is enabled.
     double          ClosedVolume; // How much of the volume has already been closed - for partial closure when UseTotalVolume == true.
     double          TotalVolume; // Store the total volume of filtered trades.
+    datetime        ConditionTimer; // Time when the condition timer was launched.
+    bool            AtLeastOneConditionTriggered; // Used only for the condition timer.
 
 public:
     CAccountProtector(void);
@@ -102,6 +106,7 @@ public:
     bool            SilentLogging;
     void            Logging_Current_Settings();
     void            HideShowMaximize(bool max);
+    void            SetFileName(string file_name) {m_FileName = file_name;}
 
     // Remember the panel's location to have the same location for minimized and maximized states.
     int             remember_top, remember_left;
@@ -134,6 +139,7 @@ private:
     string          NewTime();
     bool            CheckFilterSymbol(const string order_symbol);
     bool            CheckFilterComment(const string order_comment);
+    bool            CheckFilterDirection(const int order_type);
     bool            CheckFilterMagic(const long order_magic, const int j);
     bool            CheckFilterLossProfit(const double order_profit);
     void            Delete_All_Pending_Orders();
@@ -159,6 +165,7 @@ private:
     void OnClickBtnTabFilters();
     void OnClickBtnTabConditions();
     void OnClickBtnTabActions();
+    void OnClickBtnOnOff();
     void OnChangeChkCountCommSwaps();
     void OnChangeChkUseTimer();
     void OnEndEditTimer();
@@ -177,6 +184,7 @@ private:
     void OnClickBtnNewSnapEquity();
     void OnClickBtnNewSnapMargin();
     void OnChangeCbxOrderCommentaryCondition();
+    void OnChangeCbxOrderDirection();
     void OnEndEditOrderCommentary();
     void OnEndEditMagics();
     void OnChangeChkExcludeMagics();
@@ -219,6 +227,10 @@ private:
     void OnChangeChkDailyProfitLossPointsLE();
     void OnChangeChkDailyProfitLossPercGE();
     void OnChangeChkDailyProfitLossPercLE();
+    void OnChangeChkNumberOfPositionsGE();
+    void OnChangeChkNumberOfOrdersGE();
+    void OnChangeChkNumberOfPositionsLE();
+    void OnChangeChkNumberOfOrdersLE();
     void OnChangeChkClosePos();
     void OnChangeChkDeletePend();
     void OnChangeChkDisAuto();
@@ -262,6 +274,10 @@ private:
     void OnEndEditDailyProfitLossPointsLE();
     void OnEndEditDailyProfitLossPercGE();
     void OnEndEditDailyProfitLossPercLE();
+    void OnEndEditNumberOfPositionsGE();
+    void OnEndEditNumberOfOrdersGE();
+    void OnEndEditNumberOfPositionsLE();
+    void OnEndEditNumberOfOrdersLE();
     void OnEndEditClosePercentage();
     void OnClickBtnEmergency();
     void OnClickBtnDayOfWeek();
@@ -295,6 +311,7 @@ ON_EVENT(ON_CLICK, m_BtnTabFilters, OnClickBtnTabFilters)
 ON_EVENT(ON_CLICK, m_BtnTabConditions, OnClickBtnTabConditions)
 ON_EVENT(ON_CLICK, m_BtnTabActions, OnClickBtnTabActions)
 ON_EVENT(ON_CLICK, m_BtnDayOfWeek, OnClickBtnDayOfWeek)
+ON_EVENT(ON_CLICK, m_BtnOnOff, OnClickBtnOnOff)
 ON_EVENT(ON_CHANGE, m_ChkCountCommSwaps, OnChangeChkCountCommSwaps)
 ON_EVENT(ON_CHANGE, m_ChkUseTimer, OnChangeChkUseTimer)
 ON_EVENT(ON_END_EDIT, m_EdtTimer, OnEndEditTimer)
@@ -313,6 +330,7 @@ ON_EVENT(ON_CLICK, m_BtnResetEquityStopLoss, OnClickBtnResetEquityStopLoss)
 ON_EVENT(ON_CLICK, m_BtnNewSnapEquity, OnClickBtnNewSnapEquity)
 ON_EVENT(ON_CLICK, m_BtnNewSnapMargin, OnClickBtnNewSnapMargin)
 ON_EVENT(ON_CHANGE, m_CbxOrderCommentaryCondition, OnChangeCbxOrderCommentaryCondition)
+ON_EVENT(ON_CHANGE, m_CbxOrderDirection, OnChangeCbxOrderDirection)
 ON_EVENT(ON_END_EDIT, m_EdtOrderCommentary, OnEndEditOrderCommentary)
 ON_EVENT(ON_END_EDIT, m_EdtMagics, OnEndEditMagics)
 ON_EVENT(ON_CHANGE, m_ChkExcludeMagics, OnChangeChkExcludeMagics)
@@ -355,6 +373,10 @@ ON_EVENT(ON_CHANGE, m_ChkDailyProfitLossPointsGE, OnChangeChkDailyProfitLossPoin
 ON_EVENT(ON_CHANGE, m_ChkDailyProfitLossPointsLE, OnChangeChkDailyProfitLossPointsLE)
 ON_EVENT(ON_CHANGE, m_ChkDailyProfitLossPercGE, OnChangeChkDailyProfitLossPercGE)
 ON_EVENT(ON_CHANGE, m_ChkDailyProfitLossPercLE, OnChangeChkDailyProfitLossPercLE)
+ON_EVENT(ON_CHANGE, m_ChkNumberOfPositionsGE, OnChangeChkNumberOfPositionsGE)
+ON_EVENT(ON_CHANGE, m_ChkNumberOfOrdersGE, OnChangeChkNumberOfOrdersGE)
+ON_EVENT(ON_CHANGE, m_ChkNumberOfPositionsLE, OnChangeChkNumberOfPositionsLE)
+ON_EVENT(ON_CHANGE, m_ChkNumberOfOrdersLE, OnChangeChkNumberOfOrdersLE)
 ON_EVENT(ON_CHANGE, m_ChkClosePos, OnChangeChkClosePos)
 ON_EVENT(ON_CLICK, m_BtnPositionStatus, OnClickBtnPositionStatus)
 ON_EVENT(ON_CHANGE, m_ChkDeletePend, OnChangeChkDeletePend)
@@ -399,6 +421,10 @@ ON_EVENT(ON_END_EDIT, m_EdtDailyProfitLossPointsGE, OnEndEditDailyProfitLossPoin
 ON_EVENT(ON_END_EDIT, m_EdtDailyProfitLossPointsLE, OnEndEditDailyProfitLossPointsLE)
 ON_EVENT(ON_END_EDIT, m_EdtDailyProfitLossPercGE, OnEndEditDailyProfitLossPercGE)
 ON_EVENT(ON_END_EDIT, m_EdtDailyProfitLossPercLE, OnEndEditDailyProfitLossPercLE)
+ON_EVENT(ON_END_EDIT, m_EdtNumberOfPositionsGE, OnEndEditNumberOfPositionsGE)
+ON_EVENT(ON_END_EDIT, m_EdtNumberOfOrdersGE, OnEndEditNumberOfOrdersGE)
+ON_EVENT(ON_END_EDIT, m_EdtNumberOfPositionsLE, OnEndEditNumberOfPositionsLE)
+ON_EVENT(ON_END_EDIT, m_EdtNumberOfOrdersLE, OnEndEditNumberOfOrdersLE)
 ON_EVENT(ON_END_EDIT, m_EdtClosePercentage, OnEndEditClosePercentage)
 ON_EVENT(ON_CLICK, m_BtnEmergency, OnClickBtnEmergency)
 EVENT_MAP_END(CAppDialog)
@@ -548,8 +574,8 @@ bool CAccountProtector::CreateObjects()
     int v_spacing = (int)MathRound(4 * m_DPIScale);
     int h_spacing = (int)MathRound(10 * m_DPIScale);
 
+    int on_off_with = (int)MathRound(25 * m_DPIScale);
     int tab_button_width = (int)MathRound(80 * m_DPIScale);
-    int tab_button_spacing = (int)MathRound(10 * m_DPIScale);
 
     int normal_label_width = (int)MathRound(108 * m_DPIScale);
     int normal_edit_width = (int)MathRound(85 * m_DPIScale);
@@ -580,14 +606,16 @@ bool CAccountProtector::CreateObjects()
 
     // Start
     int y = row_start;
-    if (!LabelCreate(m_LblStatus, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblStatus", "Status:"))                                          return false;
+    if (!LabelCreate(m_LblOnOff, first_column_start, y, first_column_start + on_off_with, y + element_height, "m_LblOnOff", "OFF"))                                          return false;
+    if (!ButtonCreate(m_BtnOnOff, first_column_start + on_off_with + v_spacing, y, first_column_start + on_off_with + v_spacing + timer_width, y + element_height, "m_BtnOnOff", "Switch")) return false;
+    if (!LabelCreate(m_LblStatus, first_column_start + on_off_with + 2 * v_spacing + timer_width, y, first_column_start + on_off_with + 2 * v_spacing + timer_width + normal_label_width, y + element_height, "m_LblStatus", "Status:")) return false;
 
     // Tab Buttons
     y += element_height + v_spacing;
     if (!ButtonCreate(m_BtnTabMain, first_column_start, y, first_column_start + tab_button_width, y + element_height, "m_BtnTabMain", "Main")) return false;
-    if (!ButtonCreate(m_BtnTabFilters, first_column_start + tab_button_width + tab_button_spacing, y, first_column_start + tab_button_width * 2 + tab_button_spacing, y + element_height, "m_BtnTabFilters", "Filters")) return false;
-    if (!ButtonCreate(m_BtnTabConditions, first_column_start + tab_button_width * 2 + tab_button_spacing * 2, y, first_column_start + tab_button_width * 3 + tab_button_spacing * 2, y + element_height, "m_BtnTabConditions", "Conditions")) return false;
-    if (!ButtonCreate(m_BtnTabActions, first_column_start + tab_button_width * 3 + tab_button_spacing * 3, y, first_column_start + tab_button_width * 4 + tab_button_spacing * 3, y + element_height, "m_BtnTabActions", "Actions")) return false;
+    if (!ButtonCreate(m_BtnTabFilters, first_column_start + tab_button_width + h_spacing, y, first_column_start + tab_button_width * 2 + h_spacing, y + element_height, "m_BtnTabFilters", "Filters")) return false;
+    if (!ButtonCreate(m_BtnTabConditions, first_column_start + tab_button_width * 2 + h_spacing * 2, y, first_column_start + tab_button_width * 3 + h_spacing * 2, y + element_height, "m_BtnTabConditions", "Conditions")) return false;
+    if (!ButtonCreate(m_BtnTabActions, first_column_start + tab_button_width * 3 + h_spacing * 3, y, first_column_start + tab_button_width * 4 + h_spacing * 3, y + element_height, "m_BtnTabActions", "Actions")) return false;
 
     // Main Tab Objects
     y += element_height + 3 * v_spacing;
@@ -660,8 +688,12 @@ bool CAccountProtector::CreateObjects()
     if (!ComboBoxCreate(m_CbxOrderCommentaryCondition, second_column_start, y, second_column_start + narrow_edit_width, y + element_height, "m_CbxOrderCommentaryCondition", m_CbxOrderCommentaryCondition_Text))                                         return false;
     if (!EditCreate(m_EdtOrderCommentary, order_commentary_start, y, panel_farther_end, y + element_height, "m_EdtOrderCommentary", ""))                                                              return false;
     y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkIgnoreLossTrades, first_column_start, y, second_column_start + narrow_edit_width, y + element_height, "m_ChkIgnoreLossTrades", "Ignore losing trades"))             return false;
-    if (!CheckBoxCreate(m_ChkIgnoreProfitTrades, order_commentary_start, y, panel_farther_end, y + element_height, "m_ChkIgnoreProfitTrades", "Ignore profitable trades"))             return false;
+    if (!CheckBoxCreate(m_ChkIgnoreLossTrades, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_ChkIgnoreLossTrades", "Ignore losing"))             return false;
+    if (!LabelCreate(m_LblOrderDirection, order_commentary_start, y, order_commentary_start + narrow_label_width, y + element_height, "m_LblOrderDirection", "Order direction"))                                       return false;
+    string m_CbxOrderDirection_Text[3] = {"All", "Long only", "Short only"};
+    if (!ComboBoxCreate(m_CbxOrderDirection, order_commentary_start + narrow_label_width + h_spacing, y, panel_farther_end, y + element_height, "m_CbxOrderDirection", m_CbxOrderDirection_Text))                                         return false;
+    y += element_height + v_spacing;
+    if (!CheckBoxCreate(m_ChkIgnoreProfitTrades, first_column_start, y, first_column_start + normal_label_width + 2 * h_spacing, y + element_height, "m_ChkIgnoreProfitTrades", "Ignore profitable"))             return false;
     y += element_height + v_spacing;
     if (!ButtonCreate(m_BtnResetFilters, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_BtnResetFilters", "Reset filters")) return false;
 
@@ -854,6 +886,31 @@ bool CAccountProtector::CreateObjects()
         y += element_height + v_spacing;
     }
 
+    if (!DisableNumberOfPositionsGE)
+    {
+        if (!CheckBoxCreate(m_ChkNumberOfPositionsGE, first_column_start, y, panel_end, y + element_height, "m_ChkNumberOfPositionsGE", "Number of positions >= "))            return false;
+        if (!EditCreate(m_EdtNumberOfPositionsGE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfPositionsGE", "0"))   return false;
+        y += element_height + v_spacing;
+    }
+    if (!DisableNumberOfOrdersGE)
+    {
+        if (!CheckBoxCreate(m_ChkNumberOfOrdersGE, first_column_start, y, panel_end, y + element_height, "m_ChkNumberOfOrdersGE", "Number of pending orders >= "))            return false;
+        if (!EditCreate(m_EdtNumberOfOrdersGE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfOrdersGE", "0"))   return false;
+        y += element_height + v_spacing;
+    }
+    if (!DisableNumberOfPositionsLE)
+    {
+        if (!CheckBoxCreate(m_ChkNumberOfPositionsLE, first_column_start, y, panel_end, y + element_height, "m_ChkNumberOfPositionsLE", "Number of positions <= "))            return false;
+        if (!EditCreate(m_EdtNumberOfPositionsLE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfPositionsLE", "0"))   return false;
+        y += element_height + v_spacing;
+    }
+    if (!DisableNumberOfOrdersLE)
+    {
+        if (!CheckBoxCreate(m_ChkNumberOfOrdersLE, first_column_start, y, panel_end, y + element_height, "m_ChkNumberOfOrdersLE", "Number of pending orders <= "))            return false;
+        if (!EditCreate(m_EdtNumberOfOrdersLE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfOrdersLE", "0"))   return false;
+        y += element_height + v_spacing;
+    }
+
     // Actions Tab Objects
     y = row_start + 2 * element_height + 4 * v_spacing;
     if (!CheckBoxCreate(m_ChkClosePos, first_column_start, y, first_column_start + narrowest_edit_width, y + element_height, "m_ChkClosePos", "Close "))          return false;
@@ -914,6 +971,10 @@ bool CAccountProtector::InitObjects()
     if (!DisableDailyProfitLossPointsLE) if (!m_EdtDailyProfitLossPointsLE.TextAlign(align)) return false;
     if (!DisableDailyProfitLossPercGE) if (!m_EdtDailyProfitLossPercGE.TextAlign(align)) return false;
     if (!DisableDailyProfitLossPercLE) if (!m_EdtDailyProfitLossPercLE.TextAlign(align)) return false;
+    if (!DisableNumberOfPositionsGE) if (!m_EdtNumberOfPositionsGE.TextAlign(align)) return false;
+    if (!DisableNumberOfOrdersGE) if (!m_EdtNumberOfOrdersGE.TextAlign(align)) return false;
+    if (!DisableNumberOfPositionsLE) if (!m_EdtNumberOfPositionsLE.TextAlign(align)) return false;
+    if (!DisableNumberOfOrdersLE) if (!m_EdtNumberOfOrdersLE.TextAlign(align)) return false;
     if (!m_EdtEquityLessUnits.TextAlign(align)) return false;
     if (!m_EdtEquityGrUnits.TextAlign(align)) return false;
     if (!m_EdtEquityLessPerSnap.TextAlign(align)) return false;
@@ -1012,10 +1073,12 @@ void CAccountProtector::MoveAndResize()
             m_LblOrderCommentary.Move(m_LblOrderCommentary.Left(), ref_point + col_height * 1);
             m_CbxOrderCommentaryCondition.Move(m_CbxOrderCommentaryCondition.Left(), ref_point + col_height * 1);
             m_EdtOrderCommentary.Move(m_EdtOrderCommentary.Left(), ref_point + col_height * 1);
+            m_LblOrderDirection.Move(m_LblOrderDirection.Left(), ref_point + col_height * 2);
+            m_CbxOrderDirection.Move(m_CbxOrderDirection.Left(), ref_point + col_height * 2);
             m_ChkIgnoreLossTrades.Move(m_ChkIgnoreLossTrades.Left(), ref_point + col_height * 2);
-            m_ChkIgnoreProfitTrades.Move(m_ChkIgnoreProfitTrades.Left(), ref_point + col_height * 2);
-            m_BtnResetFilters.Move(m_BtnResetFilters.Left(), ref_point + col_height * 3);
-            m_LblURL.Move(m_LblURL.Left(), ref_point + col_height * 4);
+            m_ChkIgnoreProfitTrades.Move(m_ChkIgnoreProfitTrades.Left(), ref_point + col_height * 3);
+            m_BtnResetFilters.Move(m_BtnResetFilters.Left(), ref_point + col_height * 4);
+            m_LblURL.Move(m_LblURL.Left(), ref_point + col_height * 5);
         }
         else
         {
@@ -1025,17 +1088,23 @@ void CAccountProtector::MoveAndResize()
             m_LblOrderCommentary.Move(m_LblOrderCommentary.Left(), ref_point + (int)MathRound(col_height * 4.5));
             m_CbxOrderCommentaryCondition.Move(m_CbxOrderCommentaryCondition.Left(), ref_point + (int)MathRound(col_height * 4.5));
             m_EdtOrderCommentary.Move(m_EdtOrderCommentary.Left(), ref_point + (int)MathRound(col_height * 4.5));
+            m_LblOrderDirection.Move(m_LblOrderDirection.Left(), ref_point + (int)MathRound(col_height * 5.5));
+            m_CbxOrderDirection.Move(m_CbxOrderDirection.Left(), ref_point + (int)MathRound(col_height * 5.5));
             m_ChkIgnoreLossTrades.Move(m_ChkIgnoreLossTrades.Left(), ref_point + (int)MathRound(col_height * 5.5));
-            m_ChkIgnoreProfitTrades.Move(m_ChkIgnoreProfitTrades.Left(), ref_point + (int)MathRound(col_height * 5.5));
-            m_BtnResetFilters.Move(m_BtnResetFilters.Left(), ref_point + (int)MathRound(col_height * 6.5));
-            m_LblURL.Move(m_LblURL.Left(), ref_point + (int)MathRound(col_height * 7.5));
+            m_ChkIgnoreProfitTrades.Move(m_ChkIgnoreProfitTrades.Left(), ref_point + (int)MathRound(col_height * 6.5));
+            m_BtnResetFilters.Move(m_BtnResetFilters.Left(), ref_point + (int)MathRound(col_height * 7.5));
+            m_LblURL.Move(m_LblURL.Left(), ref_point + (int)MathRound(col_height * 8.5));
         }
         
         ref_point = m_BtnResetFilters.Top();
     }
     else if (sets.SelectedTab == ConditionsTab)
     {
-        if (!DisableDailyProfitLossPercLE) ref_point = m_EdtDailyProfitLossPercLE.Top();
+        if (!DisableNumberOfOrdersLE) ref_point = m_EdtNumberOfOrdersLE.Top();
+        else if (!DisableNumberOfPositionsLE) ref_point = m_EdtNumberOfPositionsLE.Top();
+        else if (!DisableNumberOfOrdersGE) ref_point = m_EdtNumberOfOrdersGE.Top();
+        else if (!DisableNumberOfPositionsGE) ref_point = m_EdtNumberOfPositionsGE.Top();
+        else if (!DisableDailyProfitLossPercLE) ref_point = m_EdtDailyProfitLossPercLE.Top();
         else if (!DisableDailyProfitLossPercGE) ref_point = m_EdtDailyProfitLossPercGE.Top();
         else if (!DisableDailyProfitLossPointsLE) ref_point = m_EdtDailyProfitLossPointsLE.Top();
         else if (!DisableDailyProfitLossPointsGE) ref_point = m_EdtDailyProfitLossPointsGE.Top();
@@ -1120,6 +1189,17 @@ void CAccountProtector::RefreshPanelControls()
 {
     // Main tab
 
+    if (sets.OnOff)
+    {
+        m_LblOnOff.Text("ON");
+        m_LblOnOff.Color(clrGreen);
+    }
+    else
+    {
+        m_LblOnOff.Text("OFF");
+        m_LblOnOff.Color(clrRed);
+    }
+
     // Refresh "Count commission/swaps".
     m_ChkCountCommSwaps.Checked(sets.CountCommSwaps);
 
@@ -1172,6 +1252,9 @@ void CAccountProtector::RefreshPanelControls()
     m_CbxOrderCommentaryCondition.Select(sets.intOrderCommentaryCondition);
     // Refresh order commentary edit.
     m_EdtOrderCommentary.Text(sets.OrderCommentary);
+
+    // Refresh order direction list view.
+    m_CbxOrderDirection.Select(sets.intOrderDirection);
 
     // Refresh magic numbers.
     m_EdtMagics.Text(sets.MagicNumbers);
@@ -1311,6 +1394,18 @@ void CAccountProtector::RefreshPanelControls()
     // Refresh "Daily profit/loss less or equal percentage" fields.
     if (!DisableDailyProfitLossPercLE) RefreshConditions(sets.boolDailyProfitLossPercLE, sets.doubleDailyProfitLossPercLE, m_ChkDailyProfitLossPercLE, m_EdtDailyProfitLossPercLE, 2);
 
+    // Refresh "Number of positions >= " fields.
+    if (!DisableNumberOfPositionsGE) RefreshConditions(sets.boolNumberOfPositionsGE, sets.intNumberOfPositionsGE, m_ChkNumberOfPositionsGE, m_EdtNumberOfPositionsGE, 0);
+
+    // Refresh "Number of pending orders >= " fields.
+    if (!DisableNumberOfOrdersGE) RefreshConditions(sets.boolNumberOfOrdersGE, sets.intNumberOfOrdersGE, m_ChkNumberOfOrdersGE, m_EdtNumberOfOrdersGE, 0);
+
+    // Refresh "Number of positions <= " fields.
+    if (!DisableNumberOfPositionsLE) RefreshConditions(sets.boolNumberOfPositionsLE, sets.intNumberOfPositionsLE, m_ChkNumberOfPositionsLE, m_EdtNumberOfPositionsLE, 0);
+
+    // Refresh "Number of pending orders <= " fields.
+    if (!DisableNumberOfOrdersLE) RefreshConditions(sets.boolNumberOfOrdersLE, sets.intNumberOfOrdersLE, m_ChkNumberOfOrdersLE, m_EdtNumberOfOrdersLE, 0);
+
     // Actions tab
 
     // Refresh "Close all positions" checkbox.
@@ -1442,6 +1537,8 @@ void CAccountProtector::HideFilters()
     HideControl(m_LblOrderCommentary);
     HideControl(m_CbxOrderCommentaryCondition);
     HideControl(m_EdtOrderCommentary);
+    HideControl(m_LblOrderDirection);
+    HideControl(m_CbxOrderDirection);
     HideControl(m_LblMagics);
     HideControl(m_EdtMagics);
     HideControl(m_ChkExcludeMagics);
@@ -1460,6 +1557,8 @@ void CAccountProtector::ShowFilters()
     ShowControl(m_LblOrderCommentary);
     ShowControl(m_CbxOrderCommentaryCondition);
     ShowControl(m_EdtOrderCommentary);
+    ShowControl(m_LblOrderDirection);
+    ShowControl(m_CbxOrderDirection);
     ShowControl(m_LblMagics);
     ShowControl(m_EdtMagics);
     ShowControl(m_ChkExcludeMagics);
@@ -1510,6 +1609,10 @@ void CAccountProtector::HideConditions()
     HideControl(m_ChkDailyProfitLossPointsLE);
     HideControl(m_ChkDailyProfitLossPercGE);
     HideControl(m_ChkDailyProfitLossPercLE);
+    HideControl(m_ChkNumberOfPositionsGE);
+    HideControl(m_ChkNumberOfOrdersGE);
+    HideControl(m_ChkNumberOfPositionsLE);
+    HideControl(m_ChkNumberOfOrdersLE);
     HideControl(m_ChkSpreadGE);
     HideControl(m_ChkSpreadLE);
     HideControl(m_EdtLossPerBalance);
@@ -1544,6 +1647,10 @@ void CAccountProtector::HideConditions()
     HideControl(m_EdtDailyProfitLossPointsLE);
     HideControl(m_EdtDailyProfitLossPercGE);
     HideControl(m_EdtDailyProfitLossPercLE);
+    HideControl(m_EdtNumberOfPositionsGE);
+    HideControl(m_EdtNumberOfOrdersGE);
+    HideControl(m_EdtNumberOfPositionsLE);
+    HideControl(m_EdtNumberOfOrdersLE);
     HideControl(m_EdtSpreadGE);
     HideControl(m_EdtSpreadLE);
 }
@@ -1586,6 +1693,10 @@ void CAccountProtector::ShowConditions()
     ShowControl(m_ChkDailyProfitLossPointsLE);
     ShowControl(m_ChkDailyProfitLossPercGE);
     ShowControl(m_ChkDailyProfitLossPercLE);
+    ShowControl(m_ChkNumberOfPositionsGE);
+    ShowControl(m_ChkNumberOfOrdersGE);
+    ShowControl(m_ChkNumberOfPositionsLE);
+    ShowControl(m_ChkNumberOfOrdersLE);
     ShowControl(m_EdtLossPerBalance);
     ShowControl(m_EdtLossPerBalanceReverse);
     ShowControl(m_EdtLossQuanUnits);
@@ -1620,6 +1731,10 @@ void CAccountProtector::ShowConditions()
     ShowControl(m_EdtDailyProfitLossPointsLE);
     ShowControl(m_EdtDailyProfitLossPercGE);
     ShowControl(m_EdtDailyProfitLossPercLE);
+    ShowControl(m_EdtNumberOfPositionsGE);
+    ShowControl(m_EdtNumberOfOrdersGE);
+    ShowControl(m_EdtNumberOfPositionsLE);
+    ShowControl(m_EdtNumberOfOrdersLE);
 }
 
 // Hides design-elements of TabButton "Actions".
@@ -1693,6 +1808,13 @@ void CAccountProtector::SeekAndDestroyDuplicatePanels()
 //|                   EVENTS                   |
 //|                                            |
 //+--------------------------------------------+
+
+// Processes click on the "Switch" button to turn the AP on or off.
+void CAccountProtector::OnClickBtnOnOff()
+{
+    sets.OnOff = !sets.OnOff;
+    SaveSettingsOnDisk();
+}
 
 // Click on the Main tab.
 void CAccountProtector::OnClickBtnTabMain()
@@ -1840,6 +1962,30 @@ void CAccountProtector::OnChangeChkIgnoreProfitTrades()
     }
 }
 
+// Changes Checkbox of Condition "Number of positions >= ".
+void CAccountProtector::OnChangeChkNumberOfPositionsGE()
+{
+    CheckboxChangeConditions(sets.boolNumberOfPositionsGE, m_ChkNumberOfPositionsGE);
+}
+
+// Changes Checkbox of Condition "Number of pending orders >= ".
+void CAccountProtector::OnChangeChkNumberOfOrdersGE()
+{
+    CheckboxChangeConditions(sets.boolNumberOfOrdersGE, m_ChkNumberOfOrdersGE);
+}
+
+// Changes Checkbox of Condition "Number of positions <= ".
+void CAccountProtector::OnChangeChkNumberOfPositionsLE()
+{
+    CheckboxChangeConditions(sets.boolNumberOfPositionsLE, m_ChkNumberOfPositionsLE);
+}
+
+// Changes Checkbox of Condition "Number of pending orders <= ".
+void CAccountProtector::OnChangeChkNumberOfOrdersLE()
+{
+    CheckboxChangeConditions(sets.boolNumberOfOrdersLE, m_ChkNumberOfOrdersLE);
+}
+
 // Supplementary function to process checkbox clicks (for Main tab).
 void CAccountProtector::CheckboxChangeMain(bool& SettingsCheckboxValue, CCheckBox& CheckBox)
 {
@@ -1976,6 +2122,16 @@ void CAccountProtector::OnEndEditOrderCommentary()
     }
 }
 
+// Saves input from the order direction list view.
+void CAccountProtector::OnChangeCbxOrderDirection()
+{
+    if (sets.intOrderDirection != m_CbxOrderDirection.Value())
+    {
+        sets.intOrderDirection = (int)m_CbxOrderDirection.Value();
+        SaveSettingsOnDisk();
+    }
+}
+
 // Processes edit of input-field of Magic Numbers.
 void CAccountProtector::OnEndEditMagics()
 {
@@ -2062,6 +2218,8 @@ void CAccountProtector::OnClickBtnResetFilters()
     if (StringCompare(sets.OrderCommentary, "") != 0) need_to_save_to_disk = true;
     sets.OrderCommentary = "";
     m_EdtOrderCommentary.Text("");
+    sets.intOrderDirection = 0;
+    m_CbxOrderDirection.Select(0);
     if (StringCompare(sets.MagicNumbers, "") != 0) need_to_save_to_disk = true;
     sets.MagicNumbers = "";
     ProcessMagicNumbers();
@@ -2611,6 +2769,30 @@ void CAccountProtector::OnEndEditDailyProfitLossPercLE()
     EditChangeConditions(sets.doubleDailyProfitLossPercLE, m_EdtDailyProfitLossPercLE, "Daily profit/loss <= % of balance");
 }
 
+// Processes edit of input-field of Condition "Number of positions >= ".
+void CAccountProtector::OnEndEditNumberOfPositionsGE()
+{
+    EditChangeConditions(sets.intNumberOfPositionsGE, m_EdtNumberOfPositionsGE, "Number of positions >= ");
+}
+
+// Processes edit of input-field of Condition "Number of pending orders >= ".
+void CAccountProtector::OnEndEditNumberOfOrdersGE()
+{
+    EditChangeConditions(sets.intNumberOfOrdersGE, m_EdtNumberOfOrdersGE, "Number of pending orders >= ");
+}
+
+// Processes edit of input-field of Condition "Number of positions <= ".
+void CAccountProtector::OnEndEditNumberOfPositionsLE()
+{
+    EditChangeConditions(sets.intNumberOfPositionsLE, m_EdtNumberOfPositionsLE, "Number of positions <= ");
+}
+
+// Processes edit of input-field of Condition "Number of pending orders <= ".
+void CAccountProtector::OnEndEditNumberOfOrdersLE()
+{
+    EditChangeConditions(sets.intNumberOfOrdersLE, m_EdtNumberOfOrdersLE, "Number of pending orders <= ");
+}
+
 // Processes edit of input-field for percentage of volume to be close in Action "Close Positions".
 void CAccountProtector::OnEndEditClosePercentage()
 {
@@ -2811,7 +2993,7 @@ void CAccountProtector::OnClickBtnPositionStatus()
 // Saves settings from the panel into a file.
 bool CAccountProtector::SaveSettingsOnDisk()
 {
-    int fh = FileOpen(m_FileName, FILE_TXT | FILE_WRITE);
+    int fh = FileOpen(m_FileName, FILE_TXT | FILE_WRITE | FILE_ANSI);
     if (fh == INVALID_HANDLE)
     {
         Logging("Failed to open file for writing: " + m_FileName + ". Error: " + IntegerToString(GetLastError()));
@@ -2819,6 +3001,8 @@ bool CAccountProtector::SaveSettingsOnDisk()
     }
 
     // Order does not matter.
+    FileWrite(fh, "OnOff");
+    FileWrite(fh, IntegerToString(sets.OnOff));
     FileWrite(fh, "CountCommSwaps");
     FileWrite(fh, IntegerToString(sets.CountCommSwaps));
     FileWrite(fh, "UseTimer");
@@ -2867,6 +3051,8 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, IntegerToString(sets.intOrderCommentaryCondition));
     FileWrite(fh, "OrderCommentary");
     FileWrite(fh, sets.OrderCommentary);
+    FileWrite(fh, "intOrderDirection");
+    FileWrite(fh, IntegerToString(sets.intOrderDirection));
     FileWrite(fh, "MagicNumbers");
     FileWrite(fh, sets.MagicNumbers);
     FileWrite(fh, "boolExcludeMagics");
@@ -2947,6 +3133,14 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, IntegerToString(sets.boolDailyProfitLossPercGE));
     FileWrite(fh, "boolDailyProfitLossPercLE");
     FileWrite(fh, IntegerToString(sets.boolDailyProfitLossPercLE));
+    FileWrite(fh, "boolNumberOfPositionsGE");
+    FileWrite(fh, IntegerToString(sets.boolNumberOfPositionsGE));
+    FileWrite(fh, "boolNumberOfOrdersGE");
+    FileWrite(fh, IntegerToString(sets.boolNumberOfOrdersGE));
+    FileWrite(fh, "boolNumberOfPositionsLE");
+    FileWrite(fh, IntegerToString(sets.boolNumberOfPositionsLE));
+    FileWrite(fh, "boolNumberOfOrdersLE");
+    FileWrite(fh, IntegerToString(sets.boolNumberOfOrdersLE));
     FileWrite(fh, "doubleLossPerBalance");
     FileWrite(fh, DoubleToString(sets.doubleLossPerBalance));
     FileWrite(fh, "doubleLossPerBalanceReverse");
@@ -3015,6 +3209,14 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, DoubleToString(sets.doubleDailyProfitLossPercGE));
     FileWrite(fh, "doubleDailyProfitLossPercLE");
     FileWrite(fh, DoubleToString(sets.doubleDailyProfitLossPercLE));
+    FileWrite(fh, "intNumberOfPositionsGE");
+    FileWrite(fh, IntegerToString(sets.intNumberOfPositionsGE));
+    FileWrite(fh, "intNumberOfOrdersGE");
+    FileWrite(fh, IntegerToString(sets.intNumberOfOrdersGE));
+    FileWrite(fh, "intNumberOfPositionsLE");
+    FileWrite(fh, IntegerToString(sets.intNumberOfPositionsLE));
+    FileWrite(fh, "intNumberOfOrdersLE");
+    FileWrite(fh, IntegerToString(sets.intNumberOfOrdersLE));
     FileWrite(fh, "ClosePos");
     FileWrite(fh, IntegerToString(sets.ClosePos));
     FileWrite(fh, "doubleClosePercentage");
@@ -3058,6 +3260,9 @@ bool CAccountProtector::SaveSettingsOnDisk()
     
     FileClose(fh);
 
+    // Refreshing panel controls.
+    RefreshPanelControls();
+
     return true;
 }
 
@@ -3082,7 +3287,7 @@ void CAccountProtector::RefreshConditions(const bool SettingsCheckBoxValue, cons
 bool CAccountProtector::LoadSettingsFromDisk()
 {
     if (!FileIsExist(m_FileName)) return false;
-    int fh = FileOpen(m_FileName, FILE_TXT | FILE_READ);
+    int fh = FileOpen(m_FileName, FILE_TXT | FILE_READ | FILE_ANSI);
     if (fh == INVALID_HANDLE)
     {
         Logging("Failed to open file for reading: " + m_FileName + ". Error: " + IntegerToString(GetLastError()));
@@ -3093,7 +3298,9 @@ bool CAccountProtector::LoadSettingsFromDisk()
     {
         string var_name = FileReadString(fh);
         string var_content = FileReadString(fh);
-        if (var_name == "CountCommSwaps")
+        if (var_name == "OnOff")
+            sets.OnOff = (bool)StringToInteger(var_content);
+        else if (var_name == "CountCommSwaps")
             sets.CountCommSwaps = (bool)StringToInteger(var_content);
         else if (var_name == "UseTimer")
             sets.UseTimer = (bool)StringToInteger(var_content);
@@ -3141,6 +3348,8 @@ bool CAccountProtector::LoadSettingsFromDisk()
             sets.intOrderCommentaryCondition = (int)StringToInteger(var_content);
         else if (var_name == "OrderCommentary")
             sets.OrderCommentary = var_content;
+        else if (var_name == "intOrderDirection")
+            sets.intOrderDirection = (int)StringToInteger(var_content);
         else if (var_name == "MagicNumbers")
             sets.MagicNumbers = var_content;
         else if (var_name == "boolExcludeMagics")
@@ -3299,6 +3508,26 @@ bool CAccountProtector::LoadSettingsFromDisk()
             if (!DisableDailyProfitLossPercLE) sets.boolDailyProfitLossPercLE = (bool)StringToInteger(var_content);
             else sets.boolDailyProfitLossPercLE = false;
         }
+        else if (var_name == "boolNumberOfPositionsGE")
+        {
+            if (!DisableNumberOfPositionsGE) sets.boolNumberOfPositionsGE = (bool)StringToInteger(var_content);
+            else sets.boolNumberOfPositionsGE = false;
+        }
+        else if (var_name == "boolNumberOfOrdersGE")
+        {
+            if (!DisableNumberOfOrdersGE) sets.boolNumberOfOrdersGE = (bool)StringToInteger(var_content);
+            else sets.boolNumberOfOrdersGE = false;
+        }
+        else if (var_name == "boolNumberOfPositionsLE")
+        {
+            if (!DisableNumberOfPositionsLE) sets.boolNumberOfPositionsLE = (bool)StringToInteger(var_content);
+            else sets.boolNumberOfPositionsLE = false;
+        }
+        else if (var_name == "boolNumberOfOrdersLE")
+        {
+            if (!DisableNumberOfOrdersLE) sets.boolNumberOfOrdersLE = (bool)StringToInteger(var_content);
+            else sets.boolNumberOfOrdersLE = false;
+        }
         else if (var_name == "doubleLossPerBalance")
         {
             if (!DisableFloatLossRisePerc) sets.doubleLossPerBalance = StringToDouble(var_content);
@@ -3445,6 +3674,26 @@ bool CAccountProtector::LoadSettingsFromDisk()
             if (!DisableDailyProfitLossPercLE) sets.doubleDailyProfitLossPercLE = StringToDouble(var_content);
             else sets.doubleDailyProfitLossPercLE = 0;
         }
+        else if (var_name == "intNumberOfPositionsGE")
+        {
+            if (!DisableNumberOfPositionsGE) sets.intNumberOfPositionsGE = (int)StringToInteger(var_content);
+            else sets.intNumberOfPositionsGE = 0;
+        }
+        else if (var_name == "intNumberOfOrdersGE")
+        {
+            if (!DisableNumberOfOrdersGE) sets.intNumberOfOrdersGE = (int)StringToInteger(var_content);
+            else sets.intNumberOfOrdersGE = 0;
+        }
+        else if (var_name == "intNumberOfPositionsLE")
+        {
+            if (!DisableNumberOfPositionsLE) sets.intNumberOfPositionsLE = (int)StringToInteger(var_content);
+            else sets.intNumberOfPositionsLE = 0;
+        }
+        else if (var_name == "intNumberOfOrdersLE")
+        {
+            if (!DisableNumberOfOrdersLE) sets.intNumberOfOrdersLE = (int)StringToInteger(var_content);
+            else sets.intNumberOfOrdersLE = 0;
+        }
         else if (var_name == "ClosePos")
             sets.ClosePos = (bool)StringToInteger(var_content);
         else if (var_name == "doubleClosePercentage")
@@ -3558,6 +3807,17 @@ void CAccountProtector::Check_Status()
         m_LblStatus.Text("Status: No action set.");
         return;
     }
+    else if (!sets.OnOff)
+    {
+        m_LblStatus.Text("Status: OK (but turned OFF).");
+        return;
+    }
+    else if ((ConditionDelay > 0) && (ConditionTimer > 0))
+    {
+        int dt = ConditionDelay - (int)(TimeLocal() - ConditionTimer);
+        m_LblStatus.Text("Status: Condition trigger delay: " + IntegerToString(dt) + " s.");
+        return;
+    }
     m_LblStatus.Text("Status: OK.");
     return;
 }
@@ -3566,16 +3826,17 @@ void CAccountProtector::Check_Status()
 bool CAccountProtector::No_Condition()
 {
     if ((!sets.UseTimer) &&
-            (!sets.boolProfPerBalance) && (!sets.boolProfQuanUnits) && (!sets.boolProfPoints) &&
-            (!sets.boolLossPerBalance) && (!sets.boolLossQuanUnits) && (!sets.boolLossPoints) &&
-            (!sets.boolProfPerBalanceReverse) && (!sets.boolProfQuanUnitsReverse) && (!sets.boolProfPointsReverse) &&
-            (!sets.boolLossPerBalanceReverse) && (!sets.boolLossQuanUnitsReverse) && (!sets.boolLossPointsReverse) &&
-            (!sets.boolEquityLessUnits) && (!sets.boolEquityGrUnits) && (!sets.boolEquityLessPerSnap) && (!sets.boolEquityGrPerSnap) && (!sets.boolEquityMinusSnapshot) && (!sets.boolSnapshotMinusEquity) &&
-            (!sets.boolMarginLessUnits) && (!sets.boolMarginGrUnits) && (!sets.boolMarginLessPerSnap) && (!sets.boolMarginGrPerSnap) &&
-            (!sets.boolPriceGE) && (!sets.boolPriceLE) &&
-            (!sets.boolMarginLevelGE) && (!sets.boolMarginLevelLE) &&
-            (!sets.boolSpreadGE) && (!sets.boolSpreadLE) &&
-            (!sets.boolDailyProfitLossUnitsGE) && (!sets.boolDailyProfitLossUnitsLE) && (!sets.boolDailyProfitLossPointsGE) && (!sets.boolDailyProfitLossPointsLE) && (!sets.boolDailyProfitLossPercGE) && (!sets.boolDailyProfitLossPercLE)
+        (!sets.boolProfPerBalance) && (!sets.boolProfQuanUnits) && (!sets.boolProfPoints) &&
+        (!sets.boolLossPerBalance) && (!sets.boolLossQuanUnits) && (!sets.boolLossPoints) &&
+        (!sets.boolProfPerBalanceReverse) && (!sets.boolProfQuanUnitsReverse) && (!sets.boolProfPointsReverse) &&
+        (!sets.boolLossPerBalanceReverse) && (!sets.boolLossQuanUnitsReverse) && (!sets.boolLossPointsReverse) &&
+        (!sets.boolEquityLessUnits) && (!sets.boolEquityGrUnits) && (!sets.boolEquityLessPerSnap) && (!sets.boolEquityGrPerSnap) && (!sets.boolEquityMinusSnapshot) && (!sets.boolSnapshotMinusEquity) &&
+        (!sets.boolMarginLessUnits) && (!sets.boolMarginGrUnits) && (!sets.boolMarginLessPerSnap) && (!sets.boolMarginGrPerSnap) &&
+        (!sets.boolPriceGE) && (!sets.boolPriceLE) &&
+        (!sets.boolMarginLevelGE) && (!sets.boolMarginLevelLE) &&
+        (!sets.boolSpreadGE) && (!sets.boolSpreadLE) &&
+        (!sets.boolDailyProfitLossUnitsGE) && (!sets.boolDailyProfitLossUnitsLE) && (!sets.boolDailyProfitLossPointsGE) && (!sets.boolDailyProfitLossPointsLE) && (!sets.boolDailyProfitLossPercGE) && (!sets.boolDailyProfitLossPercLE) &&
+        (!sets.boolNumberOfPositionsGE) && (!sets.boolNumberOfOrdersGE) && (!sets.boolNumberOfPositionsLE) && (!sets.boolNumberOfOrdersLE)
        ) return true;
 
     return false;
@@ -3742,6 +4003,19 @@ bool CAccountProtector::CheckFilterComment(const string order_comment)
     return false;
 }
 
+// Returns true if order should be filtered out based on its direction and filter settings.
+// Covers orders, positions, and deals because seals are only passed here if they are either BUY or SELL.
+bool CAccountProtector::CheckFilterDirection(const int order_type)
+{
+    if (sets.intOrderDirection == 0) return false; // No filter.
+    // Skip an order if the filter is set to Long and the order isn't Long.
+    if ((sets.intOrderDirection == 1) && (order_type != (int)ORDER_TYPE_BUY) && (order_type != (int)ORDER_TYPE_BUY_STOP) && (order_type != (int)ORDER_TYPE_BUY_LIMIT) && (order_type != (int)ORDER_TYPE_BUY_STOP_LIMIT)) return true;
+    // Skip an order if the filter is set to Short and the order isn't Short.
+    if ((sets.intOrderDirection == 2) && (order_type != (int)ORDER_TYPE_SELL) && (order_type != (int)ORDER_TYPE_SELL_STOP) && (order_type != (int)ORDER_TYPE_SELL_LIMIT) && (order_type != (int)ORDER_TYPE_SELL_STOP_LIMIT)) return true;
+
+    return false;
+}
+
 // Returns true if order should be filtered out based on its magic number and filter settings. j - MagicNumbers_array cycle iteration.
 bool CAccountProtector::CheckFilterMagic(const long magic, const int j)
 {
@@ -3790,12 +4064,20 @@ void CAccountProtector::Close_All_Positions()
     }
 
     // Check condition to know whether and how to sort PositionsByProfit.
+    // PositionsByProfit is pre-filled either with point distances or with currency profits.
+
     if (ArraySize(PositionsByProfit) > 0)
     {
-        if (CloseMostDistantFirst)
+        if ((CloseFirst == ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST) || (CloseFirst == ENUM_CLOSE_TRADES_MOST_PROFITABLE_FIRST))
         {
             // Regardless of condition.
             DirectSorting = false;
+            ArraySort(PositionsByProfit);
+        }
+        else if ((CloseFirst == ENUM_CLOSE_TRADES_NEAREST_FIRST) || (CloseFirst == ENUM_CLOSE_TRADES_MOST_LOSING_FIRST)) 
+        {
+            // Regardless of condition.
+            DirectSorting = true;
             ArraySort(PositionsByProfit);
         }
         else if ((TriggeredCondition == Floating_loss_rises_to_perecentage) || (TriggeredCondition == Floating_loss_rises_to_currency_units) || (TriggeredCondition == Floating_loss_rises_to_points))
@@ -4012,6 +4294,7 @@ void CAccountProtector::Delete_All_Pending_Orders()
         {
             if (CheckFilterSymbol(OrderGetString(ORDER_SYMBOL))) continue;
             if (CheckFilterComment(OrderGetString(ORDER_COMMENT))) continue;
+            if (CheckFilterDirection((int)OrderGetInteger(ORDER_TYPE))) continue;
             // Starting from -1 index to check for orders irrespective of their Magic numbers.
             for (int j = -1; j < magic_array_counter; j++)
             {
@@ -4054,6 +4337,7 @@ void CAccountProtector::Delete_All_Pending_Orders()
 
         if (CheckFilterSymbol(OrderGetString(ORDER_SYMBOL))) continue;
         if (CheckFilterComment(OrderGetString(ORDER_COMMENT))) continue;
+        if (CheckFilterDirection((int)OrderGetInteger(ORDER_TYPE))) continue;
         // Starting from -1 index to check for orders irrespective of their Magic numbers.
         for (int j = -1; j < magic_array_counter; j++)
         {
@@ -4112,6 +4396,7 @@ void CAccountProtector::Trailing()
             if (CheckFilterLossProfit(PositionGetDouble(POSITION_PROFIT))) continue;
             if (CheckFilterSymbol(PositionGetString(POSITION_SYMBOL))) continue;
             if (CheckFilterComment(PositionGetString(POSITION_COMMENT))) continue;
+            if (CheckFilterDirection((int)PositionGetInteger(POSITION_TYPE))) continue;
             // Starting from -1 index to check for positions irrespective of their Magic numbers.
             for (int j = -1; j < magic_array_counter; j++)
             {
@@ -4200,6 +4485,7 @@ void CAccountProtector::MoveToBreakEven()
             if (CheckFilterLossProfit(PositionGetDouble(POSITION_PROFIT))) continue;
             if (CheckFilterSymbol(PositionGetString(POSITION_SYMBOL))) continue;
             if (CheckFilterComment(PositionGetString(POSITION_COMMENT))) continue;
+            if (CheckFilterDirection((int)PositionGetInteger(POSITION_TYPE))) continue;
             // Starting from -1 index to check for positions irrespective of their Magic numbers.
             for (int j = -1; j < magic_array_counter; j++)
             {
@@ -4317,6 +4603,7 @@ void CAccountProtector::Logging_Current_Settings()
     Logging("sets.SnapMarginTime = " + sets.SnapMarginTime);
     Logging("sets.intOrderCommentaryCondition = " + IntegerToString(sets.intOrderCommentaryCondition));
     Logging("sets.OrderCommentary = " + sets.OrderCommentary);
+    Logging("sets.intOrderDirection = " + IntegerToString(sets.intOrderDirection));
     Logging("sets.MagicNumbers = " + sets.MagicNumbers);
     Logging("sets.boolExcludeMagics = " + (string)sets.boolExcludeMagics);
     Logging("sets.intInstrumentFilter = " + IntegerToString(sets.intInstrumentFilter));
@@ -4357,6 +4644,10 @@ void CAccountProtector::Logging_Current_Settings()
     Logging("sets.boolDailyProfitLossPointsLE = " + IntegerToString(sets.boolDailyProfitLossPointsLE));
     Logging("sets.boolDailyProfitLossPercGE = " + IntegerToString(sets.boolDailyProfitLossPercGE));
     Logging("sets.boolDailyProfitLossPercLE = " + IntegerToString(sets.boolDailyProfitLossPercLE));
+    Logging("sets.boolNumberOfPositionsGE = " + IntegerToString(sets.boolNumberOfPositionsGE));
+    Logging("sets.boolNumberOfOrdersGE = " + IntegerToString(sets.boolNumberOfOrdersGE));
+    Logging("sets.boolNumberOfPositionsLE = " + IntegerToString(sets.boolNumberOfPositionsLE));
+    Logging("sets.boolNumberOfOrdersLE = " + IntegerToString(sets.boolNumberOfOrdersLE));
     Logging("sets.doubleLossPerBalance = " + DoubleToString(sets.doubleLossPerBalance, 2));
     Logging("sets.doubleLossPerBalanceReverse = " + DoubleToString(sets.doubleLossPerBalanceReverse, 2));
     Logging("sets.doubleLossQuanUnits = " + DoubleToString(sets.doubleLossQuanUnits, AccountCurrencyDigits));
@@ -4391,6 +4682,10 @@ void CAccountProtector::Logging_Current_Settings()
     Logging("sets.intDailyProfitLossPointsLE = " + IntegerToString(sets.intDailyProfitLossPointsLE));
     Logging("sets.doubleDailyProfitLossPercGE = " + DoubleToString(sets.doubleDailyProfitLossPercGE, 2));
     Logging("sets.doubleDailyProfitLossPercLE = " + DoubleToString(sets.doubleDailyProfitLossPercLE, 2));
+    Logging("sets.intNumberOfPositionsGE = " + IntegerToString(sets.intNumberOfPositionsGE));
+    Logging("sets.intNumberOfOrdersGE = " + IntegerToString(sets.intNumberOfOrdersGE));
+    Logging("sets.intNumberOfPositionsLE = " + IntegerToString(sets.intNumberOfPositionsLE));
+    Logging("sets.intNumberOfOrdersLE = " + IntegerToString(sets.intNumberOfOrdersLE));
     Logging("sets.ClosePos = " + IntegerToString(sets.ClosePos));
     Logging("sets.doubleClosePerecentage = " + DoubleToString(sets.doubleClosePercentage) + "%");
     Logging("sets.CloseWhichPositions = " + EnumToString(sets.CloseWhichPositions));
@@ -4424,6 +4719,7 @@ void CAccountProtector::Logging_Condition_Is_Met()
 		if (CheckFilterLossProfit(PositionGetDouble(POSITION_PROFIT))) continue;
 		if (CheckFilterSymbol(PositionGetString(POSITION_SYMBOL))) continue;
 		if (CheckFilterComment(PositionGetString(POSITION_COMMENT))) continue;
+        if (CheckFilterDirection((int)PositionGetInteger(POSITION_TYPE))) continue;
 		// Starting from -1 index to check for positions irrespective of their Magic numbers.
 		for (int j = -1; j < magic_array_counter; j++)
 		{
@@ -4435,7 +4731,7 @@ void CAccountProtector::Logging_Condition_Is_Met()
                 floating_profit += position_floating_profit;
                 market++;
                 ArrayResize(PositionsByProfit, market, 100); // Reserve extra physical memory to increase the resizing speed.
-                if (!CloseMostDistantFirst) PositionsByProfit[market - 1][0] = position_floating_profit; // Normal profit.
+                if ((CloseFirst != ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST) && (CloseFirst != ENUM_CLOSE_TRADES_NEAREST_FIRST)) PositionsByProfit[market - 1][0] = position_floating_profit; // Normal profit.
                 else PositionsByProfit[market - 1][0] = MathAbs(PositionGetDouble(POSITION_PRICE_OPEN) - PositionGetDouble(POSITION_PRICE_CURRENT)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT); 
                 PositionsByProfit[market - 1][1] = (double)ticket;
                 TotalVolume += PositionGetDouble(POSITION_VOLUME);
@@ -4451,6 +4747,7 @@ void CAccountProtector::Logging_Condition_Is_Met()
         {
             if (CheckFilterSymbol(OrderGetString(ORDER_SYMBOL))) continue;
             if (CheckFilterComment(OrderGetString(ORDER_COMMENT))) continue;
+            if (CheckFilterDirection((int)OrderGetInteger(ORDER_TYPE))) continue;
             // Starting from -1 index to check for orders irrespective of their Magic numbers.
             for (int j = -1; j < magic_array_counter; j++)
             {
@@ -4539,16 +4836,27 @@ void CAccountProtector::CheckOneCondition(T &SettingsEditValue, bool &SettingsCh
 {
     if (SettingsCheckboxValue)
     {
-        Logging("CONDITION IS MET: " + EventDescription);
-        TriggeredCondition = triggered_condition;
-        Trigger_Actions(EventDescription);
-        if (!DoNotDisableConditions)
+        AtLeastOneConditionTriggered = true;
+        if ((ConditionDelay > 0) && (ConditionTimer == 0))
         {
-            SettingsCheckboxValue = false;
-            SettingsEditValue = 0;
+            Logging("CONDITION IS MET: " + EventDescription + ". Delay of " + IntegerToString(ConditionDelay) + " s is active.");
+            // Turn on condition delay timer.
+            ConditionTimer = TimeLocal();
         }
-        SaveSettingsOnDisk();
-        RefreshPanelControls();
+        else if ((ConditionDelay == 0) || (TimeLocal() - ConditionTimer >= ConditionDelay))
+        {
+            Logging("CONDITION IS MET: " + EventDescription);
+            TriggeredCondition = triggered_condition;
+            Trigger_Actions(EventDescription);
+            if (!DoNotDisableConditions)
+            {
+                SettingsCheckboxValue = false;
+                SettingsEditValue = 0;
+            }
+            SaveSettingsOnDisk();
+            // Turn off condition delay timer if it was turned on.
+            ConditionTimer = 0;
+        }
     }
 }
 
@@ -4559,8 +4867,11 @@ void CAccountProtector::CheckAllConditions()
     int floating_profit_points = 0;
     double daily_profit_loss_units = 0, daily_profit_loss_perc = 0;
     int daily_profit_loss_points = 0;
+    int market = 0, pending = 0;
 
     if (No_Condition() || No_Action()) return;
+
+    AtLeastOneConditionTriggered = false;
 
     // Calculating floating profit/loss.
     for (int i = 0; i < PositionsTotal(); i++)
@@ -4575,6 +4886,7 @@ void CAccountProtector::CheckAllConditions()
 		if (CheckFilterLossProfit(PositionGetDouble(POSITION_PROFIT))) continue;
         if (CheckFilterSymbol(PositionGetString(POSITION_SYMBOL))) continue;
         if (CheckFilterComment(PositionGetString(POSITION_COMMENT))) continue;
+        if (CheckFilterDirection((int)PositionGetInteger(POSITION_TYPE))) continue;
         // Starting from -1 index to check for positions irrespective of their Magic numbers.
         for (int j = -1; j < magic_array_counter; j++)
         {
@@ -4585,7 +4897,33 @@ void CAccountProtector::CheckAllConditions()
 
             if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) floating_profit_points += (int)MathRound((SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT));
             else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL) floating_profit_points += (int)MathRound((PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT));
-            break; // Order already processed - no point to process this order with other magic numbers.
+            market++;
+            break; // Position already processed - no point to process this order with other magic numbers.
+        }
+    }
+
+    // Calculating the number of pending orders (if necessary).
+    if ((!DisableNumberOfOrdersGE) || (!DisableNumberOfOrdersLE))
+    {
+        for (int i = 0; i < OrdersTotal(); i++)
+        {
+            ulong ticket = OrderGetTicket(i);
+            if (ticket <= 0)
+            {
+                Logging("Account Protector: OrderGetTicket failed " + IntegerToString(GetLastError()));
+                continue;
+            }
+    
+            if (CheckFilterSymbol(OrderGetString(ORDER_SYMBOL))) continue;
+            if (CheckFilterComment(OrderGetString(ORDER_COMMENT))) continue;
+            if (CheckFilterDirection((int)OrderGetInteger(ORDER_TYPE))) continue;
+            // Starting from -1 index to check for positions irrespective of their Magic numbers.
+            for (int j = -1; j < magic_array_counter; j++)
+            {
+                if ((magic_array_counter > 0) && (CheckFilterMagic(OrderGetInteger(ORDER_MAGIC), j))) continue;
+                pending++;
+                break; // Order already processed - no point to process this order with other magic numbers.
+            }
         }
     }
 
@@ -4616,10 +4954,11 @@ void CAccountProtector::CheckAllConditions()
                 continue;
             }
             if (HistoryDealGetInteger(deal_ticket, DEAL_ENTRY) == DEAL_ENTRY_IN) continue; // All other types of deals serve to exit a position.
-            if ((HistoryDealGetInteger(deal_ticket, DEAL_TYPE) != DEAL_TYPE_BUY) && (HistoryDealGetInteger(deal_ticket, DEAL_TYPE) != DEAL_TYPE_SELL)) // Wrong kinds of deals.
+            if ((HistoryDealGetInteger(deal_ticket, DEAL_TYPE) != DEAL_TYPE_BUY) && (HistoryDealGetInteger(deal_ticket, DEAL_TYPE) != DEAL_TYPE_SELL)) continue; // Wrong kinds of deals.
             if (CheckFilterLossProfit(HistoryDealGetDouble(deal_ticket, DEAL_PROFIT))) continue;
             if (CheckFilterSymbol(HistoryDealGetString(deal_ticket, DEAL_SYMBOL))) continue;
             if (CheckFilterComment(HistoryDealGetString(deal_ticket, DEAL_COMMENT))) continue;
+            if (CheckFilterDirection((int)HistoryDealGetInteger(deal_ticket, DEAL_TYPE))) continue;
             // Starting from -1 index to check for orders irrespective of their Magic numbers.
             for (int j = -1; j < magic_array_counter; j++)
             {
@@ -4665,10 +5004,12 @@ void CAccountProtector::CheckAllConditions()
                 }
             }
         }
-
-        // Current floating profit/loss is a part of the daily profit/loss.
-        daily_profit_loss_units += floating_profit;
-        daily_profit_loss_points += floating_profit_points;
+        if (CountFloatingInDailyPL)
+        {
+            // Current floating profit/loss is a part of the daily profit/loss.
+            daily_profit_loss_units += floating_profit;
+            daily_profit_loss_points += floating_profit_points;
+        }
         // Percentage of balance at the start of the day calculated by subtracting the current daily profit from the current balance.
         if (AccountInfoDouble(ACCOUNT_BALANCE) - daily_profit_loss_units != 0) daily_profit_loss_perc = daily_profit_loss_units / (AccountInfoDouble(ACCOUNT_BALANCE) - daily_profit_loss_units) * 100;
         else daily_profit_loss_perc = 100; // Zero-divide protection
@@ -4813,6 +5154,22 @@ void CAccountProtector::CheckAllConditions()
     if ((!DisableDailyProfitLossPercLE) && (daily_profit_loss_perc <= sets.doubleDailyProfitLossPercLE))
         CheckOneCondition(sets.doubleDailyProfitLossPercLE, sets.boolDailyProfitLossPercLE, "Daily profit/loss less or equal to " + DoubleToString(sets.doubleDailyProfitLossPercLE, 2) + "% of balance");
 
+    // Number of positions is greater or equal to <value>.
+    if ((!DisableNumberOfPositionsGE) && (market >= sets.intNumberOfPositionsGE))
+        CheckOneCondition(sets.intNumberOfPositionsGE, sets.boolNumberOfPositionsGE, "Number of positions greater or equal to " + IntegerToString(sets.intNumberOfPositionsGE));
+
+    // Number of orders is greater or equal to <value>.
+    if ((!DisableNumberOfOrdersGE) && (pending >= sets.intNumberOfOrdersGE))
+        CheckOneCondition(sets.intNumberOfOrdersGE, sets.boolNumberOfOrdersGE, "Number of pending orders greater or equal to " + IntegerToString(sets.intNumberOfOrdersGE));
+
+    // Number of positions is greater or equal to <value>.
+    if ((!DisableNumberOfPositionsLE) && (market <= sets.intNumberOfPositionsLE))
+        CheckOneCondition(sets.intNumberOfPositionsLE, sets.boolNumberOfPositionsLE, "Number of positions less or equal to " + IntegerToString(sets.intNumberOfPositionsLE));
+
+    // Number of orders is greater or equal to <value>.
+    if ((!DisableNumberOfOrdersLE) && (pending <= sets.intNumberOfOrdersLE))
+        CheckOneCondition(sets.intNumberOfOrdersLE, sets.boolNumberOfOrdersLE, "Number of pending orders less or equal to " + IntegerToString(sets.intNumberOfOrdersLE));
+
     // Timeout by timer.
     if ((sets.UseTimer) && (sets.TimeLeft == "00:00") && ((!DoNotDisableTimer) || (TimeLocal() - sets.dtTimerLastTriggerTime > 60))) // If DoNotDisableTimer == true, at least one minute should pass from the last trigger.
     {
@@ -4822,8 +5179,9 @@ void CAccountProtector::CheckAllConditions()
         if (!DoNotDisableTimer) sets.UseTimer = false;
         else sets.dtTimerLastTriggerTime = TimeLocal();
         SaveSettingsOnDisk();
-        RefreshPanelControls();
     }
+
+    if (!AtLeastOneConditionTriggered) ConditionTimer = 0; // Reset condition delay timer if no condition has been met.
 }
 
 // Performs actions set by user.
@@ -4950,7 +5308,6 @@ void CAccountProtector::Trigger_Actions(string title)
     }
     
     SaveSettingsOnDisk();
-    RefreshPanelControls();
 }
 
 // Saves information into a .log file and prints it to Experts tab.

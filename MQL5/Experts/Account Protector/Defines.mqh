@@ -63,8 +63,18 @@ enum ENUM_CONDITIONS
     Other_condition // Any other condition where sorting or partial closure is irrelevant.
 };
 
+enum ENUM_CLOSE_TRADES
+{
+    ENUM_CLOSE_TRADES_DEFAULT, // No order, as quickly as possible
+    ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST, // Most distant trades first
+    ENUM_CLOSE_TRADES_NEAREST_FIRST, // Nearest trades first
+    ENUM_CLOSE_TRADES_MOST_PROFITABLE_FIRST, // Most profitable trades first
+    ENUM_CLOSE_TRADES_MOST_LOSING_FIRST // Most losing trades first
+};
+
 struct Settings
 {
+    bool             OnOff;
     bool             CountCommSwaps;
     bool             UseTimer;
     string           Timer;
@@ -89,6 +99,7 @@ struct Settings
     string           SnapMarginTime;
     int              intOrderCommentaryCondition;
     string           OrderCommentary;
+    int              intOrderDirection;
     string           MagicNumbers;
     bool             boolExcludeMagics;
     int              intInstrumentFilter;
@@ -129,6 +140,10 @@ struct Settings
     bool             boolDailyProfitLossPointsLE;
     bool             boolDailyProfitLossPercGE;
     bool             boolDailyProfitLossPercLE;
+    bool             boolNumberOfPositionsGE;
+    bool             boolNumberOfOrdersGE;
+    bool             boolNumberOfPositionsLE;
+    bool             boolNumberOfOrdersLE;
     double           doubleLossPerBalance;
     double           doubleLossQuanUnits;
     int              intLossPoints;
@@ -163,6 +178,10 @@ struct Settings
     int              intDailyProfitLossPointsLE;
     double           doubleDailyProfitLossPercGE;
     double           doubleDailyProfitLossPercLE;
+    int              intNumberOfPositionsGE;
+    int              intNumberOfOrdersGE;
+    int              intNumberOfPositionsLE;
+    int              intNumberOfOrdersLE;
     bool             ClosePos;
     double           doubleClosePercentage;
     Position_Status  CloseWhichPositions;

@@ -5,8 +5,8 @@
 //+------------------------------------------------------------------+
 #property copyright "EarnForex.com"
 #property link      "https://www.earnforex.com/metatrader-expert-advisors/Account-Protector/"
-#property version   "1.091"
-string    Version = "1.091";
+#property version   "1.10"
+string    Version = "1.10";
 #property strict
 
 #property description "Protects account balance by applying given actions when set conditions trigger."
@@ -15,15 +15,15 @@ string    Version = "1.091";
 
 #include "Account Protector.mqh";
 
-input int Slippage = 2; // Slippage
-input string LogFileName = "log.txt"; // Log file name
+input group "Main"
 input bool EnableEmergencyButton = false; // Enable emergency button
-input bool PanelOnTopOfChart = true; // PanelOnTopOfChart: Draw chart as background?
 input bool DoNotDisableConditions = false; // DoNotDisableConditions: Don't disable conditions on trigger?
 input bool DoNotDisableActions = false; // DoNotDisableActions: Don't disable actions on trigger?
 input bool DoNotDisableEquityTS = false; // DoNotDisableEquityTS: Don't disable equity TS on trigger?
 input bool DoNotDisableTimer = false; // DoNotDisableTimer: Don't disable timer on trigger?
-input bool AlertOnEquityTS = false; // AlertOnEquityTS: Alert when equity trailing stop triggers?
+input int ConditionDelay = 0; // ConditionDelay: How long should condition be active to trigger?
+input bool CountFloatingInDailyPL = true; // CountFloatingInDailyPL: Count floating P/L in daily P/L?
+input group "Conditions"
 input bool DisableFloatLossRisePerc = false; // Disable floating loss rises % condition.
 input bool DisableFloatLossFallPerc = true; // Disable floating loss falls % condition.
 input bool DisableFloatLossRiseCurr = false; // Disable floating loss rises currency units condition.
@@ -50,27 +50,51 @@ input bool DisableDailyProfitLossPointsGE = true; // Disable daily profit/loss g
 input bool DisableDailyProfitLossPointsLE = true; // Disable daily profit/loss level less or equal points condition.
 input bool DisableDailyProfitLossPercGE = true; // Disable daily profit/loss greater or equal percentage condition.
 input bool DisableDailyProfitLossPercLE = true; // Disable daily profit/loss level less or equal percentage condition.
+input bool DisableNumberOfPositionsGE = true; // Disable number of positions greater or equal condition.
+input bool DisableNumberOfOrdersGE = true; // Disable number of pending orders greater or equal condition.
+input bool DisableNumberOfPositionsLE = true; // Disable number of positions less or equal condition.
+input bool DisableNumberOfOrdersLE = true; // Disable number of pending orders less or equal condition.
+input group "Trading"
 input int DelayOrderClose = 0; // DelayOrderClose: Delay in milliseconds.
 input bool UseTotalVolume = false; // UseTotalVolume: enable if trading with many small trades and partial position closing.
+input ENUM_CLOSE_TRADES CloseFirst = ENUM_CLOSE_TRADES_DEFAULT; // CloseFirst: Close which trades first?
+input bool BreakEvenProfitInCurrencyUnits = false; // BreakEvenProfitInCurrencyUnits: currency instead of points.
+input group "Miscellaneous"
+input bool AlertOnEquityTS = false; // AlertOnEquityTS: Alert when equity trailing stop triggers?
 input double AdditionalFunds = 0; // AdditionalFunds: Added to balance, equity, and free margin.
 input string Instruments = ""; // Instruments: Default list of trading instruments for order filtering.
-input bool CloseMostDistantFirst = false; // CloseMostDistantFirst: Close most distant trades first?
-input bool BreakEvenProfitInCurrencyUnits = false; // BreakEvenProfitInCurrencyUnits: currency instead of points.
 input bool GlobalSnapshots = false; // GlobalSnapshots: AP instances share equity & margin snapshots.
+input int Slippage = 2; // Slippage
+input string LogFileName = "log.txt"; // Log file name
+input string SettingsFileName = ""; // Settings file: Load custom panel settings from \Files\ folder.
 
 CAccountProtector ExtDialog;
+
+int DeinitializationReason = -1;
 
 //+------------------------------------------------------------------+
 //| Initialization function                                          |
 //+------------------------------------------------------------------+
 int OnInit()
 {
+    if (DeinitializationReason == REASON_CHARTCHANGE)
+    {
+        EventSetTimer(1);
+        return INIT_SUCCEEDED;
+    }
+
     MathSrand((int)GetTickCount() + 220051901); // Used by CreateInstanceId() in Dialog.mqh (standard library). Keep the second number unique across other panel indicators/EAs.
+
+    if (SettingsFileName != "") // Load a custom settings file if given via input parameters.
+    {
+        ExtDialog.SetFileName(SettingsFileName);
+    }
 
     ExtDialog.AccountCurrencyDigits = (int)AccountInfoInteger(ACCOUNT_CURRENCY_DIGITS);
 
     if (!ExtDialog.LoadSettingsFromDisk())
     {
+        sets.OnOff = false;
         sets.CountCommSwaps = true;
         sets.UseTimer = false;
         sets.Timer = TimeToString(TimeCurrent() - 7200, TIME_MINUTES);
@@ -100,6 +124,7 @@ int OnInit()
         }
         sets.OrderCommentary = "";
         sets.intOrderCommentaryCondition = 0;
+        sets.intOrderDirection = 0;
         sets.MagicNumbers = "";
         sets.boolExcludeMagics = false;
         sets.intInstrumentFilter = 0;
@@ -140,6 +165,10 @@ int OnInit()
         sets.boolDailyProfitLossPointsLE = false;
         sets.boolDailyProfitLossPercGE = false;
         sets.boolDailyProfitLossPercLE = false;
+        sets.boolNumberOfPositionsGE = false;
+        sets.boolNumberOfOrdersGE = false;
+        sets.boolNumberOfPositionsLE = false;
+        sets.boolNumberOfOrdersLE = false;
         sets.doubleLossPerBalance = 0;
         sets.doubleLossQuanUnits = 0;
         sets.intLossPoints = 0;
@@ -174,6 +203,10 @@ int OnInit()
         sets.intDailyProfitLossPointsLE = 0;
         sets.doubleDailyProfitLossPercGE= 0;
         sets.doubleDailyProfitLossPercLE = 0;
+        sets.intNumberOfPositionsGE = 0;
+        sets.intNumberOfOrdersGE = 0;
+        sets.intNumberOfPositionsLE = 0;
+        sets.intNumberOfOrdersLE = 0;
         sets.ClosePos = true;
         sets.doubleClosePercentage = 100;
         sets.CloseWhichPositions = All;
@@ -232,7 +265,6 @@ int OnInit()
         sets.boolBreakEvenExtra = false;
     }
 
-    EventSetTimer(5);
     if (!ExtDialog.Create(0, Symbol() + " Account Protector (ver. " + Version + ")", 0, 20, 20)) return(-1);
     ExtDialog.Run();
     ExtDialog.IniFileLoad();
@@ -243,9 +275,9 @@ int OnInit()
     ExtDialog.RefreshPanelControls();
     ExtDialog.RefreshValues();
 
-    ChartSetInteger(0, CHART_FOREGROUND, !PanelOnTopOfChart);
+    EventSetTimer(1);
 
-    return(INIT_SUCCEEDED);
+    return INIT_SUCCEEDED;
 }
 
 //+------------------------------------------------------------------+
@@ -253,9 +285,11 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+    DeinitializationReason = reason; // Remember reason to avoid recreating the panel in the OnInit() if it is not deleted here.
+    EventKillTimer();
     if ((reason == REASON_REMOVE) || (reason == REASON_CHARTCLOSE) || (reason == REASON_PROGRAM))
     {
-        ExtDialog.DeleteSettingsFile();
+        if (SettingsFileName == "") ExtDialog.DeleteSettingsFile(); // Only delete settings file if no custom file name is given.
         Print("Trying to delete ini file.");
         if (!FileIsExist(ExtDialog.IniFileName() + ".dat")) Print("File doesn't exist.");
         else if (!FileDelete(ExtDialog.IniFileName() + ".dat")) Print("Failed to delete file: " + ExtDialog.IniFileName() + ".dat. Error: " + IntegerToString(GetLastError()));
@@ -267,14 +301,13 @@ void OnDeinit(const int reason)
         ExtDialog.SilentLogging = false;
         ExtDialog.Logging_Current_Settings();
     }
-    else
+    else if (reason != REASON_CHARTCHANGE)
     {
         if (reason == REASON_PARAMETERS) GlobalVariableSet("AP-" + IntegerToString(ChartID()) + "-Parameters", 1);
         ExtDialog.SaveSettingsOnDisk();
         ExtDialog.IniFileSave();
     }
-    ExtDialog.Destroy();
-    EventKillTimer();
+    if (reason != REASON_CHARTCHANGE) ExtDialog.Destroy();
 }
 
 //+------------------------------------------------------------------+
@@ -306,6 +339,7 @@ void OnChartEvent(const int id,
 void OnTick()
 {
     ExtDialog.RefreshValues();
+    if (!sets.OnOff) return;
     ExtDialog.Trailing();
     ExtDialog.EquityTrailing();
     ExtDialog.MoveToBreakEven();
@@ -319,6 +353,7 @@ void OnTick()
 void OnTimer()
 {
     ExtDialog.RefreshValues();
+    if (!sets.OnOff) return;
     ExtDialog.Trailing();
     ExtDialog.EquityTrailing();
     ExtDialog.MoveToBreakEven();
