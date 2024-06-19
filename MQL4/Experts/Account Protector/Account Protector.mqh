@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //|                                            Account Protector.mqh |
-//|                             Copyright © 2017-2023, EarnForex.com |
+//|                             Copyright © 2017-2024, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #include "Defines.mqh"
@@ -11,9 +11,6 @@
 int GetAncestor(int, int);
 #import
 
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
 class CAccountProtector : public CAppDialog
 {
 private:
@@ -634,7 +631,10 @@ bool CAccountProtector::CreateObjects()
     if (!CheckBoxCreate(m_ChkBreakEvenExtra, first_column_start, y, panel_end, y + element_height, "m_ChkBreakEvenExtra", "Breakeven extra profit value (points):"))            return false;
     if (!EditCreate(m_EdtBreakEvenExtra, last_input_start, y, last_input_end, y + element_height, "m_EdtBreakEvenExtra", "0"))                                                                return false;
     y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkEquityTrailingStop, first_column_start, y, panel_end, y + element_height, "m_ChkEquityTrailingStop", "Equity trailing stop (hidden), USD:"))             return false;
+    string ets = "Equity trailing stop (hidden), ";
+    if (EquityTrailingStopInPercentage) ets += "%:";
+    else ets += "USD:";
+    if (!CheckBoxCreate(m_ChkEquityTrailingStop, first_column_start, y, panel_end, y + element_height, "m_ChkEquityTrailingStop", ets))             return false;
     if (!EditCreate(m_EdtEquityTrailingStop, last_input_start, y, last_input_end, y + element_height, "m_EdtEquityTrailingStop", "0"))                                                                return false;
     y += element_height + v_spacing;
     if (!LabelCreate(m_LblCurrentEquityStopLoss, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblCurrentEquityStopLoss", "Current equity stop-loss, USD: "))                                        return false;
@@ -1160,11 +1160,12 @@ bool CAccountProtector::RefreshValues()
     string account_currency = AccountCurrency();
     if (account_currency != "")
     {
-        m_ChkEquityTrailingStop.Text("Equity trailing stop (hidden), " + account_currency + ":");
+        if (!EquityTrailingStopInPercentage) m_ChkEquityTrailingStop.Text("Equity trailing stop (hidden), " + account_currency + ":");
         if (BreakEvenProfitInCurrencyUnits)
         {
             m_ChkBreakEven.Text("Profit value (" + account_currency + ") to set SL to breakeven:");
         }
+        if ((sets.boolEquityTrailingStop) && (sets.doubleEquityTrailingStop > 0)) m_LblCurrentEquityStopLoss.Text("Current equity stop-loss: " + DoubleToString(sets.doubleCurrentEquityStopLoss, 2) + " " + account_currency + ".");
     }
     if (IsANeedToContinueClosingOrders) Close_All_Positions();
     if (IsANeedToContinueDeletingPendingOrders) Delete_All_Pending_Orders();
@@ -3743,9 +3744,14 @@ void CAccountProtector::HideShowMaximize(bool max = true)
 void CAccountProtector::Check_Status()
 {
     if (sets.Triggered) return;
-    if ((!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) || (!MQLInfoInteger(MQL_TRADE_ALLOWED)))
+    if (!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED))
     {
-        m_LblStatus.Text("Status: Autotrading is disabled.");
+        m_LblStatus.Text("Status: Autotrading is disabled (platform).");
+        return;
+    }
+    else if (!MQLInfoInteger(MQL_TRADE_ALLOWED))
+    {
+        m_LblStatus.Text("Status: Autotrading is disabled (EA).");
         return;
     }
     else if ((!MQLInfoInteger(MQL_DLLS_ALLOWED)) && ((sets.DisAuto) || (sets.EnableAuto)))
@@ -4462,10 +4468,12 @@ void CAccountProtector::EquityTrailing()
         MoveAndResize();
     }
     // If equity stop-loss should be trailed - update the stop-loss.
-    else if ((AE - sets.doubleEquityTrailingStop > sets.doubleCurrentEquityStopLoss) || (sets.doubleCurrentEquityStopLoss == 0))
+    if (((!EquityTrailingStopInPercentage) && ((AE - sets.doubleEquityTrailingStop > sets.doubleCurrentEquityStopLoss) || (sets.doubleCurrentEquityStopLoss == 0))) || // Currency equity trailing stop should be moved.
+         ((EquityTrailingStopInPercentage) && ((AE * (1 - sets.doubleEquityTrailingStop  / 100.0) > sets.doubleCurrentEquityStopLoss) || (sets.doubleCurrentEquityStopLoss == 0)))) // Percentage equity trailing stop should be moved.
     {
         double old_value = sets.doubleCurrentEquityStopLoss;
-        sets.doubleCurrentEquityStopLoss = AE - sets.doubleEquityTrailingStop;
+        if (!EquityTrailingStopInPercentage) sets.doubleCurrentEquityStopLoss = AE - sets.doubleEquityTrailingStop; // $
+        else sets.doubleCurrentEquityStopLoss = AE * (1 - sets.doubleEquityTrailingStop  / 100.0); // %
         SaveSettingsOnDisk();
         string account_currency = AccountCurrency();
         if (account_currency != "") m_LblCurrentEquityStopLoss.Text("Current equity stop-loss: " + DoubleToString(sets.doubleCurrentEquityStopLoss, 2) + " " + account_currency + ".");
@@ -4958,29 +4966,44 @@ void CAccountProtector::CheckAllConditions()
     if ((!DisableSpreadLE) && (SymbolInfoInteger(Symbol(), SYMBOL_SPREAD) <= sets.intSpreadLE))
         CheckOneCondition(sets.intSpreadLE, sets.boolSpreadLE, "Spread less or equal to " + IntegerToString(sets.intSpreadLE));
 
+    bool CheckDailyConditions = true;
+    if ((DoNotDisableConditions) && (DoNotDisableActions)) // Two main circumstances that could lead to infinite attempts to do something.
+    {
+        if (((!sets.ClosePos) || ((sets.ClosePos) && (market == 0)))  && // Close all, but there is nothing to close.
+            ((!sets.DeletePend) || ((sets.DeletePend) && (pending == 0))) && // Delete all pending, but there is nothing to delete.
+            ((!sets.DisAuto) || ((sets.DisAuto) && (!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)))) && // Disable AT, but it's already disabled.
+            (!sets.ClosePlatform) && (!sets.EnableAuto) && (!sets.CloseAllOtherCharts) && (!sets.RecaptureSnapshots)) // All other actions (except notifications should be disabled).
+        {
+            CheckDailyConditions = false; // No need to check daily conditions.
+        }
+    }
+
+    if (CheckDailyConditions)
+    {
 // Daily profit/loss greater or equal to <value> currency units.
-    if ((!DisableDailyProfitLossUnitsGE) && (daily_profit_loss_units >= sets.doubleDailyProfitLossUnitsGE))
-        CheckOneCondition(sets.doubleDailyProfitLossUnitsGE, sets.boolDailyProfitLossUnitsGE, "Daily profit/loss greater or equal to " + DoubleToString(sets.doubleDailyProfitLossUnitsGE, 2) + " " + AccountInfoString(ACCOUNT_CURRENCY));
-
+        if ((!DisableDailyProfitLossUnitsGE) && (daily_profit_loss_units >= sets.doubleDailyProfitLossUnitsGE))
+            CheckOneCondition(sets.doubleDailyProfitLossUnitsGE, sets.boolDailyProfitLossUnitsGE, "Daily profit/loss greater or equal to " + DoubleToString(sets.doubleDailyProfitLossUnitsGE, 2) + " " + AccountInfoString(ACCOUNT_CURRENCY));
+    
 // Daily profit/loss less or equal to <value> currency units.
-    if ((!DisableDailyProfitLossUnitsLE) && (daily_profit_loss_units <= sets.doubleDailyProfitLossUnitsLE))
-        CheckOneCondition(sets.doubleDailyProfitLossUnitsLE, sets.boolDailyProfitLossUnitsLE, "Daily profit/loss less or equal to " + DoubleToString(sets.doubleDailyProfitLossUnitsLE, 2) + " " + AccountInfoString(ACCOUNT_CURRENCY));
-
+        if ((!DisableDailyProfitLossUnitsLE) && (daily_profit_loss_units <= sets.doubleDailyProfitLossUnitsLE))
+            CheckOneCondition(sets.doubleDailyProfitLossUnitsLE, sets.boolDailyProfitLossUnitsLE, "Daily profit/loss less or equal to " + DoubleToString(sets.doubleDailyProfitLossUnitsLE, 2) + " " + AccountInfoString(ACCOUNT_CURRENCY));
+    
 // Daily profit/loss greater or equal to <value> points.
-    if ((!DisableDailyProfitLossPointsGE) && (daily_profit_loss_points >= sets.intDailyProfitLossPointsGE))
-        CheckOneCondition(sets.intDailyProfitLossPointsGE, sets.boolDailyProfitLossPointsGE, "Daily profit/loss greater or equal to " + IntegerToString(sets.intDailyProfitLossPointsGE));
-
+        if ((!DisableDailyProfitLossPointsGE) && (daily_profit_loss_points >= sets.intDailyProfitLossPointsGE))
+            CheckOneCondition(sets.intDailyProfitLossPointsGE, sets.boolDailyProfitLossPointsGE, "Daily profit/loss greater or equal to " + IntegerToString(sets.intDailyProfitLossPointsGE));
+    
 // Daily profit/loss less or equal to <value> points.
-    if ((!DisableDailyProfitLossPointsLE) && (daily_profit_loss_points <= sets.intDailyProfitLossPointsLE))
-        CheckOneCondition(sets.intDailyProfitLossPointsLE, sets.boolDailyProfitLossPointsLE, "Daily profit/loss less or equal to " + IntegerToString(sets.intDailyProfitLossPointsLE));
-
+        if ((!DisableDailyProfitLossPointsLE) && (daily_profit_loss_points <= sets.intDailyProfitLossPointsLE))
+            CheckOneCondition(sets.intDailyProfitLossPointsLE, sets.boolDailyProfitLossPointsLE, "Daily profit/loss less or equal to " + IntegerToString(sets.intDailyProfitLossPointsLE));
+    
 // Daily profit/loss greater or equal to <value> %.
-    if ((!DisableDailyProfitLossPercGE) && (daily_profit_loss_perc >= sets.doubleDailyProfitLossPercGE))
-        CheckOneCondition(sets.doubleDailyProfitLossPercGE, sets.boolDailyProfitLossPercGE, "Daily profit/loss greater or equal to " + DoubleToString(sets.doubleDailyProfitLossPercGE, 2) + "% of balance");
-
+        if ((!DisableDailyProfitLossPercGE) && (daily_profit_loss_perc >= sets.doubleDailyProfitLossPercGE))
+            CheckOneCondition(sets.doubleDailyProfitLossPercGE, sets.boolDailyProfitLossPercGE, "Daily profit/loss greater or equal to " + DoubleToString(sets.doubleDailyProfitLossPercGE, 2) + "% of balance");
+    
 // Daily profit/loss less or equal to <value> %.
-    if ((!DisableDailyProfitLossPercLE) && (daily_profit_loss_perc <= sets.doubleDailyProfitLossPercLE))
-        CheckOneCondition(sets.doubleDailyProfitLossPercLE, sets.boolDailyProfitLossPercLE, "Daily profit/loss less or equal to " + DoubleToString(sets.doubleDailyProfitLossPercLE, 2) + "% of balance");
+        if ((!DisableDailyProfitLossPercLE) && (daily_profit_loss_perc <= sets.doubleDailyProfitLossPercLE))
+            CheckOneCondition(sets.doubleDailyProfitLossPercLE, sets.boolDailyProfitLossPercLE, "Daily profit/loss less or equal to " + DoubleToString(sets.doubleDailyProfitLossPercLE, 2) + "% of balance");
+    }
 
 // Number of positions is greater or equal to <value>.
     if ((!DisableNumberOfPositionsGE) && (market >= sets.intNumberOfPositionsGE))
@@ -5153,7 +5176,7 @@ void CAccountProtector::Logging(string message)
         }
         else Alert("Unexpected error accessing file: ", filename, ".");
     }
-    if (!SilentLogging) Print(message);
+    if ((!Silent) && (!SilentLogging)) Print(message);
 }
 
 // Creates array of Magic numbers and updates its counter.

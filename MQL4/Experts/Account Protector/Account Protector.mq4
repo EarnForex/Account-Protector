@@ -1,12 +1,12 @@
 //+------------------------------------------------------------------+
 //|                                            Account Protector.mq4 |
-//|                             Copyright © 2017-2023, EarnForex.com |
+//|                             Copyright © 2017-2024, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #property copyright "EarnForex.com"
 #property link      "https://www.earnforex.com/metatrader-expert-advisors/Account-Protector/"
-#property version   "1.10"
-string    Version = "1.10";
+#property version   "1.11"
+string    Version = "1.11";
 #property strict
 
 #property description "Protects account balance by applying given actions when set conditions trigger."
@@ -59,14 +59,16 @@ input int DelayOrderClose = 0; // DelayOrderClose: Delay in milliseconds.
 input bool UseTotalVolume = false; // UseTotalVolume: enable if trading with many small trades and partial position closing.
 input ENUM_CLOSE_TRADES CloseFirst = ENUM_CLOSE_TRADES_DEFAULT; // CloseFirst: Close which trades first?
 input bool BreakEvenProfitInCurrencyUnits = false; // BreakEvenProfitInCurrencyUnits: currency instead of points.
+input bool EquityTrailingStopInPercentage = false; // EquityTrailingStopInPercentage: % instead of $.
 input string ____Miscellaneous = "";
 input bool AlertOnEquityTS = false; // AlertOnEquityTS: Alert when equity trailing stop triggers?
 input double AdditionalFunds = 0; // AdditionalFunds: Added to balance, equity, and free margin.
 input string Instruments = ""; // Instruments: Default list of trading instruments for order filtering.
 input bool GlobalSnapshots = false; // GlobalSnapshots: AP instances share equity & margin snapshots.
 input int Slippage = 2; // Slippage
-input string LogFileName = "log.txt"; // Log file name
+input string LogFileName = "ap_log.txt"; // Log file name
 input string SettingsFileName = ""; // Settings file: Load custom panel settings from \Files\ folder.
+input bool Silent = false; // Silent: No log output to the Experts tab.
 
 CAccountProtector ExtDialog;
 
@@ -253,7 +255,11 @@ int OnInit()
 
     if ((!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) || (!MQLInfoInteger(MQL_TRADE_ALLOWED)))
     {
-        Alert("AutoTrading is disabled! EA will be not able to perform trading operations!");
+        string where = "";
+        if ((!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) && (!MQLInfoInteger(MQL_TRADE_ALLOWED))) where = "in both EA's and platform's settings"; // Both.
+        else if (!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) where = "in the platform's settings"; // Platform level.
+        else if (!MQLInfoInteger(MQL_TRADE_ALLOWED)) where = "in the EA's settings"; // EA level.
+        Alert("AutoTrading is disabled " + where + "! EA will be not able to perform trading operations!");
         sets.ClosePos = false;
         sets.DeletePend = false;
         sets.DisAuto = false;
