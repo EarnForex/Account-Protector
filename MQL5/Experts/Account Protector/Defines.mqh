@@ -1,6 +1,6 @@
 ﻿//+------------------------------------------------------------------+
 //|                                                      Defines.mqh |
-//|                             Copyright © 2017-2024, EarnForex.com |
+//|                             Copyright © 2017-2025, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #include <Controls\Button.mqh>
@@ -144,6 +144,9 @@ struct Settings
     bool             boolNumberOfOrdersGE;
     bool             boolNumberOfPositionsLE;
     bool             boolNumberOfOrdersLE;
+    bool             boolBalanceGE;
+    bool             boolBalanceLE;
+    bool             boolListenToSignal;
     double           doubleLossPerBalance;
     double           doubleLossQuanUnits;
     int              intLossPoints;
@@ -182,6 +185,9 @@ struct Settings
     int              intNumberOfOrdersGE;
     int              intNumberOfPositionsLE;
     int              intNumberOfOrdersLE;
+    double           doubleBalanceGE;
+    double           doubleBalanceLE;
+    int              intListenToSignal;
     bool             ClosePos;
     double           doubleClosePercentage;
     Position_Status  CloseWhichPositions;
@@ -193,6 +199,8 @@ struct Settings
     bool             EnableAuto;
     bool             RecaptureSnapshots;
     bool             CloseAllOtherCharts;
+    bool             EmitSignal;
+    int              SignalChannel;
     TABS             SelectedTab;
     bool             Triggered;
     string           TriggeredTime;

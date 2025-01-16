@@ -1,12 +1,12 @@
 ﻿//+------------------------------------------------------------------+
 //|                                            Account Protector.mq5 |
-//|                             Copyright © 2017-2024, EarnForex.com |
+//|                             Copyright © 2017-2025, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #property copyright "EarnForex.com"
 #property link      "https://www.earnforex.com/metatrader-expert-advisors/Account-Protector/"
-#property version   "1.11"
-string    Version = "1.11";
+#property version   "1.12"
+string    Version = "1.12";
 #property strict
 
 #property description "Protects account balance by applying given actions when set conditions trigger."
@@ -38,34 +38,49 @@ input bool DisableFloatProfitRisePoints = false; // Disable floating profit rise
 input bool DisableFloatProfitFallPoints = true; // Disable floating profit falls points condition.
 input bool DisableCurrentPriceGE = true; // Disable current price greater or equal condition.
 input bool DisableCurrentPriceLE = true; // Disable current price less or equal condition.
+input bool DisableEquityUnitsLE = false; // Disable equity less or equal currency units condition.
+input bool DisableEquityUnitsGE = false; // Disable equity greater or equal currency units condition.
+input bool DisableEquityPercLE = false; // Disable equity less or equal % of snapshot condition.
+input bool DisableEquityPercGE = false; // Disable equity greater or equal % of snapshot condition.
 input bool DisableEquityMinusSnapshot = true; // Disable (Equity - snapshot) greater or equal condition.
 input bool DisableSnapshotMinusEquity = true; // Disable (snapshot - Equity) greater or equal condition.
+input bool DisableMarginUnitsLE = false; // Disable free margin less or equal currency units condition.
+input bool DisableMarginUnitsGE = false; // Disable free margin greater or equal currency units condition.
+input bool DisableMarginPercLE = false; // Disable free margin less or equal % of snapshot condition.
+input bool DisableMarginPercGE = false; // Disable free margin greater or equal % of snapshot condition.
 input bool DisableMarginLevelGE = true; // Disable margin level greater or equal condition.
 input bool DisableMarginLevelLE = true; // Disable margin level less or equal condition.
 input bool DisableSpreadGE = true; // Disable spread greater or equal condition.
 input bool DisableSpreadLE = true; // Disable spread less or equal condition.
 input bool DisableDailyProfitLossUnitsGE = true; // Disable daily profit/loss greater or equal units condition.
-input bool DisableDailyProfitLossUnitsLE = true; // Disable daily profit/loss level less or equal units condition.
+input bool DisableDailyProfitLossUnitsLE = true; // Disable daily profit/loss less or equal units condition.
 input bool DisableDailyProfitLossPointsGE = true; // Disable daily profit/loss greater or equal points condition.
-input bool DisableDailyProfitLossPointsLE = true; // Disable daily profit/loss level less or equal points condition.
+input bool DisableDailyProfitLossPointsLE = true; // Disable daily profit/loss less or equal points condition.
 input bool DisableDailyProfitLossPercGE = true; // Disable daily profit/loss greater or equal percentage condition.
-input bool DisableDailyProfitLossPercLE = true; // Disable daily profit/loss level less or equal percentage condition.
+input bool DisableDailyProfitLossPercLE = true; // Disable daily profit/loss less or equal percentage condition.
 input bool DisableNumberOfPositionsGE = true; // Disable number of positions greater or equal condition.
 input bool DisableNumberOfOrdersGE = true; // Disable number of pending orders greater or equal condition.
 input bool DisableNumberOfPositionsLE = true; // Disable number of positions less or equal condition.
 input bool DisableNumberOfOrdersLE = true; // Disable number of pending orders less or equal condition.
+input bool DisableBalanceGE = true; // Disable balance greater or equal condition.
+input bool DisableBalanceLE = true; // Disable balance less or equal condition.
+input bool DisableListenToSignal = true; // Disable signal condition.
+input bool WaitForAllConditions = false; // WaitForAllConditions: Only trigger when all conditions are met.
 input group "Trading"
 input int DelayOrderClose = 0; // DelayOrderClose: Delay in milliseconds.
 input bool UseTotalVolume = false; // UseTotalVolume: enable if trading with many small trades and partial position closing.
 input ENUM_CLOSE_TRADES CloseFirst = ENUM_CLOSE_TRADES_DEFAULT; // CloseFirst: Close which trades first?
 input bool BreakEvenProfitInCurrencyUnits = false; // BreakEvenProfitInCurrencyUnits: currency instead of points.
 input bool EquityTrailingStopInPercentage = false; // EquityTrailingStopInPercentage: % instead of $.
+input bool DisableAutoTradingOnTS = false; // DisableAutoTradingOnTS: Disable autotrading on eq. TS trigger.
+input bool AsyncMode = false; // AsyncMode: If true, trades are closed/modified in async mode.
 input group "Miscellaneous"
 input bool AlertOnEquityTS = false; // AlertOnEquityTS: Alert when equity trailing stop triggers?
 input double AdditionalFunds = 0; // AdditionalFunds: Added to balance, equity, and free margin.
 input string Instruments = ""; // Instruments: Default list of trading instruments for order filtering.
 input bool GlobalSnapshots = false; // GlobalSnapshots: AP instances share equity & margin snapshots.
 input int Slippage = 2; // Slippage
+input bool CloseOtherChartsOnEmergencyButton = false; // Close other charts on emergency button.
 input string LogFileName = "ap_log.txt"; // Log file name
 input string SettingsFileName = ""; // Settings file: Load custom panel settings from \Files\ folder.
 input bool Silent = false; // Silent: No log output to the Experts tab.
@@ -171,6 +186,9 @@ int OnInit()
         sets.boolNumberOfOrdersGE = false;
         sets.boolNumberOfPositionsLE = false;
         sets.boolNumberOfOrdersLE = false;
+        sets.boolBalanceGE = false;
+        sets.boolBalanceLE = false;
+        sets.boolListenToSignal = false;
         sets.doubleLossPerBalance = 0;
         sets.doubleLossQuanUnits = 0;
         sets.intLossPoints = 0;
@@ -209,6 +227,9 @@ int OnInit()
         sets.intNumberOfOrdersGE = 0;
         sets.intNumberOfPositionsLE = 0;
         sets.intNumberOfOrdersLE = 0;
+        sets.doubleBalanceGE = 0;
+        sets.doubleBalanceLE = 0;
+        sets.intListenToSignal = 0;
         sets.ClosePos = true;
         sets.doubleClosePercentage = 100;
         sets.CloseWhichPositions = All;

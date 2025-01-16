@@ -1,6 +1,6 @@
 ﻿//+------------------------------------------------------------------+
 //|                                            Account Protector.mqh |
-//|                             Copyright © 2017-2024, EarnForex.com |
+//|                             Copyright © 2017-2025, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #include "Defines.mqh"
@@ -49,6 +49,8 @@ private:
     CCheckBox       m_ChkPriceGE, m_ChkPriceLE, m_ChkMarginLevelGE, m_ChkMarginLevelLE, m_ChkSpreadGE, m_ChkSpreadLE;
     CCheckBox       m_ChkDailyProfitLossUnitsGE, m_ChkDailyProfitLossUnitsLE, m_ChkDailyProfitLossPointsGE, m_ChkDailyProfitLossPointsLE, m_ChkDailyProfitLossPercGE, m_ChkDailyProfitLossPercLE;
     CCheckBox       m_ChkNumberOfPositionsGE, m_ChkNumberOfOrdersGE, m_ChkNumberOfPositionsLE, m_ChkNumberOfOrdersLE;
+    CCheckBox       m_ChkBalanceGE, m_ChkBalanceLE;
+    CCheckBox       m_ChkListenToSignal;
     // Conditions Tab - Edits
     CEdit           m_EdtLossPerBalance, m_EdtLossQuanUnits, m_EdtLossPoints, m_EdtProfPerBalance, m_EdtProfQuanUnits, m_EdtProfPoints;
     CEdit           m_EdtLossPerBalanceReverse, m_EdtLossQuanUnitsReverse, m_EdtLossPointsReverse, m_EdtProfPerBalanceReverse, m_EdtProfQuanUnitsReverse, m_EdtProfPointsReverse;
@@ -57,13 +59,15 @@ private:
     CEdit           m_EdtPriceGE, m_EdtPriceLE, m_EdtMarginLevelGE, m_EdtMarginLevelLE, m_EdtSpreadGE, m_EdtSpreadLE;
     CEdit           m_EdtDailyProfitLossUnitsGE, m_EdtDailyProfitLossUnitsLE, m_EdtDailyProfitLossPointsGE, m_EdtDailyProfitLossPointsLE, m_EdtDailyProfitLossPercGE, m_EdtDailyProfitLossPercLE;
     CEdit           m_EdtNumberOfPositionsGE, m_EdtNumberOfOrdersGE, m_EdtNumberOfPositionsLE, m_EdtNumberOfOrdersLE;
+    CEdit           m_EdtBalanceGE, m_EdtBalanceLE;
+    CEdit           m_EdtListenToSignal;
 
     // Actions Tab - Labels
     CLabel          m_LblClosePosSuffix, m_LblClosePosPostfix;
     // Actions Tab - CheckBoxes
-    CCheckBox       m_ChkClosePos, m_ChkDeletePend, m_ChkDisAuto, m_ChkSendMails, m_ChkSendNotif, m_ChkClosePlatform, m_ChkEnableAuto, m_ChkRecaptureSnapshots, m_ChkCloseAllOtherCharts;
+    CCheckBox       m_ChkClosePos, m_ChkDeletePend, m_ChkDisAuto, m_ChkSendMails, m_ChkSendNotif, m_ChkClosePlatform, m_ChkEnableAuto, m_ChkRecaptureSnapshots, m_ChkCloseAllOtherCharts, m_ChkEmitSignal;
     // Actions Tab - Edits
-    CEdit           m_EdtClosePercentage;
+    CEdit           m_EdtClosePercentage, m_EdtSignalChannel;
     // Actions Tab - Buttons
     CButton         m_BtnPositionStatus;
 
@@ -71,7 +75,7 @@ private:
     int             LogFile, QuantityClosedPositions, QuantityDeletedPendingOrders, magic_array_counter, MagicNumbers_array[], instruments_array_counter;
     string          Instruments_array[];
     bool            IsANeedToContinueClosingPositions, IsANeedToContinueDeletingPendingOrders;
-    bool            WasAutoTradingDisabled, WasMailSent, WasNotificationSent, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots, WasCloseAllOtherCharts;
+    bool            WasAutoTradingDisabled, WasMailSent, WasNotificationSent, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots, WasCloseAllOtherCharts, WasEmitSignal;
     double          m_DPIScale;
     bool            NoPanelMaximization; // Crutch variable to prevent panel maximization when Maximize() is called at the indicator's initialization.
     CArrayLong     *PartiallyClosedOrders; // Stores order tickets that have been partially closed by Eliminate_Orders().
@@ -80,7 +84,18 @@ private:
     double          ClosedVolume; // How much of the volume has already been closed - for partial closure when UseTotalVolume == true.
     double          TotalVolume; // Store the total volume of filtered trades.
     datetime        ConditionTimer; // Time when the condition timer was launched.
-    bool            AtLeastOneConditionTriggered; // Used only for the condition timer.
+    int             NumberConditionsTriggered; // Used to check multiple conditions on AND and for the condition timer.
+    int             LastConditionsTriggered; // Used to track how many met conditions have been reported.
+    int             TotalConditionsNumber; // The total number of conditions ticked on the Conditions tab.
+    bool            ResetAllTickedConditions; // A flag to untick all conditions following a trigger when conditions are connected by AND.
+    double          DailyStartingBalance; // Store daily starting balance for output on the Conditions tab.
+    double          DailyProfitLossUnits; // Calculated in one method, used in another one.
+    double          DailyProfitLossPerc; // Calculated in one method, used in another one.
+    int             DailyProfitLossPoints; // Calculated in one method, used in another one.
+    double          FloatingProfit; // Calculated in one method, used in another one.
+    int             FloatingProfitPoints; // Calculated in one method, used in another one.
+    int             NumberOfMarketOrders; // Calculated in one method, used in another one.
+    int             NumberOfPendingOrders; // Calculated in one method, used in another one.
 
 public:
     CAccountProtector(void);
@@ -115,12 +130,12 @@ private:
     bool            CreateObjects();
     bool            InitObjects();
     void            MoveAndResize();
-    bool            ButtonCreate     (CButton&     Btn, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string Text);
-    bool            CheckBoxCreate   (CCheckBox&   Chk, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string Text);
-    bool            EditCreate       (CEdit&       Edt, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string Text);
-    bool            LabelCreate      (CLabel&      Lbl, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string Text);
-    bool            RadioGroupCreate (CRadioGroup& Rgp, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string &Text[]);
-    bool            ComboBoxCreate   (CComboBox&   Cbx, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string &Text[]);
+    bool            ButtonCreate     (CButton&     Btn, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string Text, string Tooltip = "\n");
+    bool            CheckBoxCreate   (CCheckBox&   Chk, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string Text, string Tooltip = "\n");
+    bool            EditCreate       (CEdit&       Edt, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string Text, string Tooltip = "\n");
+    bool            LabelCreate      (CLabel&      Lbl, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string Text, string Tooltip = "\n");
+    bool            RadioGroupCreate (CRadioGroup& Rgp, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string &Text[], string Tooltip = "\n");
+    bool            ComboBoxCreate   (CComboBox&   Cbx, const int X1, const int Y1, const int X2, const int Y2, const string Name, const string &Text[], string Tooltip = "\n");
     void            ShowMain();
     void            ShowFilters();
     void            ShowConditions();
@@ -148,7 +163,7 @@ private:
     int             Close_Current_Position(const ulong ticket);
     void            Trigger_Actions(const string title);
     void            Logging_Condition_Is_Met();
-    void            PrepareSubjectBody(string &subject, string &body, const string title, const datetime timestamp, const int pos_closed, const int pend_deleted, const bool autotrade_dis, const bool push_sent, const bool mail_sent, const bool platf_closed, const bool autotrade_enabled, const bool snapshots_recaptured, const bool other_charts_closed, const bool short_body = false);
+    void            PrepareSubjectBody(string &subject, string &body, const string title, const datetime timestamp, const int pos_closed, const int pend_deleted, const bool autotrade_dis, const bool push_sent, const bool mail_sent, const bool platf_closed, const bool autotrade_enabled, const bool snapshots_recaptured, const bool other_charts_closed, const bool emit_signal, const bool short_body = false);
     void            SendMailFunction(string subject, string body);
     void            SendNotificationFunction(string subject, string body);
     void            CloseAllOtherCharts();
@@ -159,6 +174,7 @@ private:
     bool            IsDouble(const string value);
     bool            IsInteger(const string value);
     double          CalculateOrderLots(const double lots, const string symbol);
+    void            CalculateDailyProfitLossAndStartingBalance();
 
     // Event handlers
     void OnClickBtnTabMain();
@@ -231,6 +247,9 @@ private:
     void OnChangeChkNumberOfOrdersGE();
     void OnChangeChkNumberOfPositionsLE();
     void OnChangeChkNumberOfOrdersLE();
+    void OnChangeChkBalanceGE();
+    void OnChangeChkBalanceLE();
+    void OnChangeChkListenToSignal();
     void OnChangeChkClosePos();
     void OnChangeChkDeletePend();
     void OnChangeChkDisAuto();
@@ -240,6 +259,7 @@ private:
     void OnChangeChkEnableAuto();
     void OnChangeChkRecaptureSnapshots();
     void OnChangeChkCloseAllOtherCharts();
+    void OnChangeChkEmitSignal();
     void OnEndEditLossPerBalance();
     void OnEndEditLossPerBalanceReverse();
     void OnEndEditLossQuanUnits();
@@ -278,7 +298,11 @@ private:
     void OnEndEditNumberOfOrdersGE();
     void OnEndEditNumberOfPositionsLE();
     void OnEndEditNumberOfOrdersLE();
+    void OnEndEditBalanceGE();
+    void OnEndEditBalanceLE();
+    void OnEndEditListenToSignal();
     void OnEndEditClosePercentage();
+    void OnEndEditSignalChannel();
     void OnClickBtnEmergency();
     void OnClickBtnDayOfWeek();
     void OnClickBtnPositionStatus();
@@ -291,7 +315,8 @@ private:
     void EditChangeConditions(T& SettingsEditValue, CEdit& Edit, const string FieldName, const double RangeMaximum = 0);
     void EditChangeMain(int& SettingsEditValue, CEdit& Edit, const string FieldName);
     void EditChangeMain(double& SettingsEditValue, CEdit& Edit, const string FieldName);
-    void RefreshConditions(const bool SettingsCheckBoxValue, const double SettingsEditValue, CCheckBox& CheckBox, CEdit& Edit, const int decimal_places);
+    template<typename T>
+    void RefreshConditions(bool& SettingsCheckBoxValue, T& SettingsEditValue, CCheckBox& CheckBox, CEdit& Edit, const int decimal_places);
     void UpdateEquitySnapshot();
     void UpdateMarginSnapshot();
     void UpdateEquitySnapshotPanelFields();
@@ -305,7 +330,6 @@ private:
 
 // Event Map
 EVENT_MAP_BEGIN(CAccountProtector)
-//if (id != CHARTEVENT_MOUSE_MOVE) Print(__FUNCTION__, " id = ", id, " (", EnumToString((ENUM_CHART_EVENT)id), ") lparam = ", lparam, " dparam = ", dparam, " sparam = ", sparam);
 ON_EVENT(ON_CLICK, m_BtnTabMain, OnClickBtnTabMain)
 ON_EVENT(ON_CLICK, m_BtnTabFilters, OnClickBtnTabFilters)
 ON_EVENT(ON_CLICK, m_BtnTabConditions, OnClickBtnTabConditions)
@@ -377,6 +401,9 @@ ON_EVENT(ON_CHANGE, m_ChkNumberOfPositionsGE, OnChangeChkNumberOfPositionsGE)
 ON_EVENT(ON_CHANGE, m_ChkNumberOfOrdersGE, OnChangeChkNumberOfOrdersGE)
 ON_EVENT(ON_CHANGE, m_ChkNumberOfPositionsLE, OnChangeChkNumberOfPositionsLE)
 ON_EVENT(ON_CHANGE, m_ChkNumberOfOrdersLE, OnChangeChkNumberOfOrdersLE)
+ON_EVENT(ON_CHANGE, m_ChkBalanceGE, OnChangeChkBalanceGE)
+ON_EVENT(ON_CHANGE, m_ChkBalanceLE, OnChangeChkBalanceLE)
+ON_EVENT(ON_CHANGE, m_ChkListenToSignal, OnChangeChkListenToSignal)
 ON_EVENT(ON_CHANGE, m_ChkClosePos, OnChangeChkClosePos)
 ON_EVENT(ON_CLICK, m_BtnPositionStatus, OnClickBtnPositionStatus)
 ON_EVENT(ON_CHANGE, m_ChkDeletePend, OnChangeChkDeletePend)
@@ -387,6 +414,7 @@ ON_EVENT(ON_CHANGE, m_ChkClosePlatform, OnChangeChkClosePlatform)
 ON_EVENT(ON_CHANGE, m_ChkEnableAuto, OnChangeChkEnableAuto)
 ON_EVENT(ON_CHANGE, m_ChkRecaptureSnapshots, OnChangeChkRecaptureSnapshots)
 ON_EVENT(ON_CHANGE, m_ChkCloseAllOtherCharts, OnChangeChkCloseAllOtherCharts)
+ON_EVENT(ON_CHANGE, m_ChkEmitSignal, OnChangeChkEmitSignal)
 ON_EVENT(ON_END_EDIT, m_EdtLossPerBalance, OnEndEditLossPerBalance)
 ON_EVENT(ON_END_EDIT, m_EdtLossPerBalanceReverse, OnEndEditLossPerBalanceReverse)
 ON_EVENT(ON_END_EDIT, m_EdtLossQuanUnits, OnEndEditLossQuanUnits)
@@ -425,7 +453,11 @@ ON_EVENT(ON_END_EDIT, m_EdtNumberOfPositionsGE, OnEndEditNumberOfPositionsGE)
 ON_EVENT(ON_END_EDIT, m_EdtNumberOfOrdersGE, OnEndEditNumberOfOrdersGE)
 ON_EVENT(ON_END_EDIT, m_EdtNumberOfPositionsLE, OnEndEditNumberOfPositionsLE)
 ON_EVENT(ON_END_EDIT, m_EdtNumberOfOrdersLE, OnEndEditNumberOfOrdersLE)
+ON_EVENT(ON_END_EDIT, m_EdtBalanceGE, OnEndEditBalanceGE)
+ON_EVENT(ON_END_EDIT, m_EdtBalanceLE, OnEndEditBalanceLE)
+ON_EVENT(ON_END_EDIT, m_EdtListenToSignal, OnEndEditListenToSignal)
 ON_EVENT(ON_END_EDIT, m_EdtClosePercentage, OnEndEditClosePercentage)
+ON_EVENT(ON_END_EDIT, m_EdtSignalChannel, OnEndEditSignalChannel)
 ON_EVENT(ON_CLICK, m_BtnEmergency, OnClickBtnEmergency)
 EVENT_MAP_END(CAppDialog)
 
@@ -448,21 +480,24 @@ CAccountProtector::CAccountProtector()
     WasAutoTradingEnabled = false;
     WasRecapturedSnapshots = false;
     WasCloseAllOtherCharts = false;
+    WasEmitSignal = false;
     NoPanelMaximization = false;
     remember_left = -1;
     remember_top = -1;
     PartiallyClosedOrders = new CArrayLong();
     TriggeredCondition = Other_condition;
+    LastConditionsTriggered = 0;
 }
 
 //+--------+
 //| Button |
 //+--------+
-bool CAccountProtector::ButtonCreate(CButton &Btn, int X1, int Y1, int X2, int Y2, string Name, string Text)
+bool CAccountProtector::ButtonCreate(CButton &Btn, int X1, int Y1, int X2, int Y2, string Name, string Text, string Tooltip = "\n")
 {
     if (!Btn.Create(m_chart_id, m_name + Name, m_subwin, X1, Y1, X2, Y2))       return false;
     if (!Add(Btn))                                                              return false;
     if (!Btn.Text(Text))                                                        return false;
+    ObjectSetString(ChartID(), m_name + Name, OBJPROP_TOOLTIP, Tooltip);
 
     return true;
 }
@@ -470,11 +505,13 @@ bool CAccountProtector::ButtonCreate(CButton &Btn, int X1, int Y1, int X2, int Y
 //+----------+
 //| Checkbox |
 //+----------+
-bool CAccountProtector::CheckBoxCreate(CCheckBox &Chk, int X1, int Y1, int X2, int Y2, string Name, string Text)
+bool CAccountProtector::CheckBoxCreate(CCheckBox &Chk, int X1, int Y1, int X2, int Y2, string Name, string Text, string Tooltip = "\n")
 {
     if (!Chk.Create(m_chart_id, m_name + Name, m_subwin, X1, Y1, X2, Y2))       return false;
     if (!Add(Chk))                                                              return false;
     if (!Chk.Text(Text))                                                        return false;
+    ObjectSetString(ChartID(), m_name + Name + "Label", OBJPROP_TOOLTIP, Tooltip);
+    ObjectSetString(ChartID(), m_name + Name + "Button", OBJPROP_TOOLTIP, Tooltip);
 
     return true;
 }
@@ -482,11 +519,12 @@ bool CAccountProtector::CheckBoxCreate(CCheckBox &Chk, int X1, int Y1, int X2, i
 //+------+
 //| Edit |
 //+------+
-bool CAccountProtector::EditCreate(CEdit &Edt, int X1, int Y1, int X2, int Y2, string Name, string Text)
+bool CAccountProtector::EditCreate(CEdit &Edt, int X1, int Y1, int X2, int Y2, string Name, string Text, string Tooltip = "\n")
 {
     if (!Edt.Create(m_chart_id, m_name + Name, m_subwin, X1, Y1, X2, Y2))       return false;
     if (!Add(Edt))                                                              return false;
     if (!Edt.Text(Text))                                                        return false;
+    ObjectSetString(ChartID(), m_name + Name, OBJPROP_TOOLTIP, Tooltip);
 
     return true;
 }
@@ -494,11 +532,12 @@ bool CAccountProtector::EditCreate(CEdit &Edt, int X1, int Y1, int X2, int Y2, s
 //+-------+
 //| Label |
 //+-------+
-bool CAccountProtector::LabelCreate(CLabel &Lbl, int X1, int Y1, int X2, int Y2, string Name, string Text)
+bool CAccountProtector::LabelCreate(CLabel &Lbl, int X1, int Y1, int X2, int Y2, string Name, string Text, string Tooltip = "\n")
 {
     if (!Lbl.Create(m_chart_id, m_name + Name, m_subwin, X1, Y1, X2, Y2))       return false;
     if (!Add(Lbl))                                                              return false;
     if (!Lbl.Text(Text))                                                        return false;
+    ObjectSetString(ChartID(), m_name + Name, OBJPROP_TOOLTIP, Tooltip);
 
     return true;
 }
@@ -506,7 +545,7 @@ bool CAccountProtector::LabelCreate(CLabel &Lbl, int X1, int Y1, int X2, int Y2,
 //+------------+
 //| RadioGroup |
 //+------------+
-bool CAccountProtector::RadioGroupCreate(CRadioGroup &Rgp, int X1, int Y1, int X2, int Y2, string Name, const string &Text[])
+bool CAccountProtector::RadioGroupCreate(CRadioGroup &Rgp, int X1, int Y1, int X2, int Y2, string Name, const string &Text[], string Tooltip = "\n")
 {
     if (!Rgp.Create(m_chart_id, m_name + Name, m_subwin, X1, Y1, X2, Y2))       return false;
     if (!Add(Rgp))                                                              return false;
@@ -515,6 +554,8 @@ bool CAccountProtector::RadioGroupCreate(CRadioGroup &Rgp, int X1, int Y1, int X
     for (int i = 0; i < size; i++)
     {
         if (!Rgp.AddItem(Text[i], i))                                                            return false;
+        ObjectSetString(ChartID(), m_name + Name + "Item" + IntegerToString(i) + "Label", OBJPROP_TOOLTIP, Tooltip);
+        ObjectSetString(ChartID(), m_name + Name + "Item" + IntegerToString(i) + "Button", OBJPROP_TOOLTIP, Tooltip);
     }
 
     return true;
@@ -523,7 +564,7 @@ bool CAccountProtector::RadioGroupCreate(CRadioGroup &Rgp, int X1, int Y1, int X
 //+----------+
 //| ComboBox |
 //+----------+
-bool CAccountProtector::ComboBoxCreate(CComboBox &Cbx, int X1, int Y1, int X2, int Y2, string Name, const string &Text[])
+bool CAccountProtector::ComboBoxCreate(CComboBox &Cbx, int X1, int Y1, int X2, int Y2, string Name, const string &Text[], string Tooltip = "\n")
 {
     if (!Cbx.Create(m_chart_id, m_name + Name, m_subwin, X1, Y1, X2, Y2))       return false;
     if (!Add(Cbx))                                                              return false;
@@ -534,6 +575,7 @@ bool CAccountProtector::ComboBoxCreate(CComboBox &Cbx, int X1, int Y1, int X2, i
     {
         if (!Cbx.AddItem(Text[i], i))                                                            return false;
     }
+    ObjectSetString(ChartID(), m_name + Name + "Edit", OBJPROP_TOOLTIP, Tooltip);
 
     return true;
 }
@@ -606,8 +648,8 @@ bool CAccountProtector::CreateObjects()
 
     // Start
     int y = row_start;
-    if (!LabelCreate(m_LblOnOff, first_column_start, y, first_column_start + on_off_with, y + element_height, "m_LblOnOff", "OFF"))                                          return false;
-    if (!ButtonCreate(m_BtnOnOff, first_column_start + on_off_with + v_spacing, y, first_column_start + on_off_with + v_spacing + timer_width, y + element_height, "m_BtnOnOff", "Switch")) return false;
+    if (!LabelCreate(m_LblOnOff, first_column_start, y, first_column_start + on_off_with, y + element_height, "m_LblOnOff", "OFF", "Is Account Protector ON or OFF?"))                                          return false;
+    if (!ButtonCreate(m_BtnOnOff, first_column_start + on_off_with + v_spacing, y, first_column_start + on_off_with + v_spacing + timer_width, y + element_height, "m_BtnOnOff", "Switch", "Switch Account Protector ON or OFF")) return false;
     if (!LabelCreate(m_LblStatus, first_column_start + on_off_with + 2 * v_spacing + timer_width, y, first_column_start + on_off_with + 2 * v_spacing + timer_width + normal_label_width, y + element_height, "m_LblStatus", "Status:")) return false;
 
     // Tab Buttons
@@ -620,48 +662,48 @@ bool CAccountProtector::CreateObjects()
     // Main Tab Objects
     y += element_height + 3 * v_spacing;
     if (!LabelCreate(m_LblSpread, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblSpread", "Spread: " + DoubleToString((double)SymbolInfoInteger(Symbol(), SYMBOL_SPREAD) * SymbolInfoDouble(Symbol(), SYMBOL_POINT), (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS))))                                        return false;
-    if (!CheckBoxCreate(m_ChkCountCommSwaps, second_column_main_start, y, panel_farther_end, y + element_height, "m_ChkCountCommSwaps", "Count commission/swaps"))            return false;
+    if (!CheckBoxCreate(m_ChkCountCommSwaps, second_column_main_start, y, panel_farther_end, y + element_height, "m_ChkCountCommSwaps", "Count commission/swaps", "If ticked, commission and swaps will be included in profit/loss of your trades"))            return false;
     y += element_height + v_spacing;
     if (!CheckBoxCreate(m_ChkUseTimer, first_column_start, y, second_column_magic_start, y + element_height, "m_ChkUseTimer", "Use timer:"))          return false;
-    if (!EditCreate(m_EdtTimer, second_column_magic_start, y, second_column_magic_start + timer_width, y + element_height, "m_EdtTimer", "00:00"))                                                                return false;
+    if (!EditCreate(m_EdtTimer, second_column_magic_start, y, second_column_magic_start + timer_width, y + element_height, "m_EdtTimer", "00:00", "Time in a 24-hour HH:MM format"))                                                                return false;
     string m_RgpTimeType_Text[2] = {"Server time", "Local time"};
-    if (!RadioGroupCreate(m_RgpTimeType, second_column_main_start, y, second_column_main_start + timer_radio_width, y + element_height * 2, "m_RgpTimeType", m_RgpTimeType_Text))             return false;
+    if (!RadioGroupCreate(m_RgpTimeType, second_column_main_start, y, second_column_main_start + timer_radio_width, y + element_height * 2, "m_RgpTimeType", m_RgpTimeType_Text, "Server time = your broker, Local time = your computer"))             return false;
     if (!LabelCreate(m_LblTimeLeft, timer_label_start, y, timer_label_start + timer_width, y + element_height, "m_LblTimeLeft", "Time left:"))                                        return false;
     y += element_height + v_spacing;
     if (!LabelCreate(m_LblDayOfWeek, first_column_start, y, first_column_start + timer_width, y + element_height, "m_LblDayOfWeek", "Day: "))                                         return false;
-    if (!ButtonCreate(m_BtnDayOfWeek, first_column_start + timer_width, y, second_column_magic_start + timer_width, y + element_height, "m_BtnDayOfWeek", "Any")) return false;
+    if (!ButtonCreate(m_BtnDayOfWeek, first_column_start + timer_width, y, second_column_magic_start + timer_width, y + element_height, "m_BtnDayOfWeek", "Any", "The timer will only trigger on this day of the week")) return false;
     y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkTrailingStart, first_column_start, y, panel_end, y + element_height, "m_ChkTrailingStart", "Profit value (points) to start trailing SL:"))             return false;
-    if (!EditCreate(m_EdtTrailingStart, last_input_start, y, last_input_end, y + element_height, "m_EdtTrailingStart", "0"))                                                              return false;
+    if (!CheckBoxCreate(m_ChkTrailingStart, first_column_start, y, panel_end, y + element_height, "m_ChkTrailingStart", "Profit value (points) to start trailing SL:", "This works on a per-position basis"))             return false;
+    if (!EditCreate(m_EdtTrailingStart, last_input_start, y, last_input_end, y + element_height, "m_EdtTrailingStart", "0", "This works on a per-position basis"))                                                              return false;
     y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkTrailingStep, first_column_start, y, panel_end, y + element_height, "m_ChkTrailingStep", "Trailing SL value (points):"))           return false;
-    if (!EditCreate(m_EdtTrailingStep, last_input_start, y, last_input_end, y + element_height, "m_EdtTrailingStep", "0"))                                                                return false;
+    if (!CheckBoxCreate(m_ChkTrailingStep, first_column_start, y, panel_end, y + element_height, "m_ChkTrailingStep", "Trailing SL value (points):", "This works on a per-position basis"))           return false;
+    if (!EditCreate(m_EdtTrailingStep, last_input_start, y, last_input_end, y + element_height, "m_EdtTrailingStep", "0", "This works on a per-position basis"))                                                                return false;
     y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkBreakEven, first_column_start, y, panel_end, y + element_height, "m_ChkBreakEven", "Profit value (points) to set SL to breakeven:"))          return false;
-    if (!EditCreate(m_EdtBreakEven, last_input_start, y, last_input_end, y + element_height, "m_EdtBreakEven", "0"))                                                              return false;
+    if (!CheckBoxCreate(m_ChkBreakEven, first_column_start, y, panel_end, y + element_height, "m_ChkBreakEven", "Profit value (points) to set SL to breakeven:", "This works on a per-position basis"))          return false;
+    if (!EditCreate(m_EdtBreakEven, last_input_start, y, last_input_end, y + element_height, "m_EdtBreakEven", "0", "This works on a per-position basis"))                                                              return false;
     y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkBreakEvenExtra, first_column_start, y, panel_end, y + element_height, "m_ChkBreakEvenExtra", "Breakeven extra profit value (points):"))            return false;
-    if (!EditCreate(m_EdtBreakEvenExtra, last_input_start, y, last_input_end, y + element_height, "m_EdtBreakEvenExtra", "0"))                                                                return false;
+    if (!CheckBoxCreate(m_ChkBreakEvenExtra, first_column_start, y, panel_end, y + element_height, "m_ChkBreakEvenExtra", "Breakeven extra profit value (points):", "This works on a per-position basis"))            return false;
+    if (!EditCreate(m_EdtBreakEvenExtra, last_input_start, y, last_input_end, y + element_height, "m_EdtBreakEvenExtra", "0", "This works on a per-position basis"))                                                                return false;
     y += element_height + v_spacing;
     string ets = "Equity trailing stop (hidden), ";
     if (EquityTrailingStopInPercentage) ets += "%:";
     else ets += "USD:";
-    if (!CheckBoxCreate(m_ChkEquityTrailingStop, first_column_start, y, panel_end, y + element_height, "m_ChkEquityTrailingStop", ets))             return false;
-    if (!EditCreate(m_EdtEquityTrailingStop, timer_label_start, y, last_input_end, y + element_height, "m_EdtEquityTrailingStop", "0"))                                                               return false;
+    if (!CheckBoxCreate(m_ChkEquityTrailingStop, first_column_start, y, panel_end, y + element_height, "m_ChkEquityTrailingStop", ets, "Equity trailing stop for the entire account"))             return false;
+    if (!EditCreate(m_EdtEquityTrailingStop, timer_label_start, y, last_input_end, y + element_height, "m_EdtEquityTrailingStop", "0", "Equity trailing stop for the entire account"))                                                               return false;
     y += element_height + v_spacing;
-    if (!LabelCreate(m_LblCurrentEquityStopLoss, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblCurrentEquityStopLoss", "Current equity stop-loss, USD: "))                                        return false;
+    if (!LabelCreate(m_LblCurrentEquityStopLoss, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblCurrentEquityStopLoss", "Current equity stop-loss, USD: ", "If equity goes down to this value, the equity trailing stop will close all positions."))                                        return false;
     if (!ButtonCreate(m_BtnResetEquityStopLoss, last_input_start, y, last_input_end, y + element_height, "m_BtnResetEquityStopLoss", "Reset SL")) return false;
     y += element_height + v_spacing;
-    if (!LabelCreate(m_LblSnapEquity, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblSnapEquity", "Snapshot of equity: "))                                         return false;
+    if (!LabelCreate(m_LblSnapEquity, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblSnapEquity", "Snapshot of equity: ", "This snapshot can be used in conditions"))                                         return false;
     y += element_height + v_spacing;
-    if (!LabelCreate(m_LblSnapMargin, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblSnapMargin", "Snapshot of free margin: "))                                        return false;
+    if (!LabelCreate(m_LblSnapMargin, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblSnapMargin", "Snapshot of free margin: ", "This snapshot can be used in conditions"))                                        return false;
     y += element_height + v_spacing;
-    if (!ButtonCreate(m_BtnNewSnapEquity, first_column_start, y, first_column_start + snap_button_width, y + element_height, "m_BtnNewSnapEquity", "New snapshot of equity")) return false;
-    if (!ButtonCreate(m_BtnNewSnapMargin, first_column_start + snap_button_width + h_spacing, y, panel_farther_end, y + element_height, "m_BtnNewSnapMargin", "New snapshot of free margin")) return false;
+    if (!ButtonCreate(m_BtnNewSnapEquity, first_column_start, y, first_column_start + snap_button_width, y + element_height, "m_BtnNewSnapEquity", "New snapshot of equity", "Snapshots are used in conditions")) return false;
+    if (!ButtonCreate(m_BtnNewSnapMargin, first_column_start + snap_button_width + h_spacing, y, panel_farther_end, y + element_height, "m_BtnNewSnapMargin", "New snapshot of free margin", "Snapshots are used in conditions")) return false;
     if (EnableEmergencyButton)
     {
         y += element_height + 3 * v_spacing;
-        if (!ButtonCreate(m_BtnEmergency, first_column_start, y, panel_farther_end, y + (int)(element_height * 2.5), "m_BtnEmergency", "Emergency button")) return false;
+        if (!ButtonCreate(m_BtnEmergency, first_column_start, y, panel_farther_end, y + (int)(element_height * 2.5), "m_BtnEmergency", "Emergency button", "Close all trades, delete all pending orders, disable autotrading")) return false;
         m_BtnEmergency.ColorBackground(clrRed);
         m_BtnEmergency.Color(clrWhite);
         y += (int)(element_height * 2.5) + v_spacing;
@@ -676,27 +718,27 @@ bool CAccountProtector::CreateObjects()
     // Filters Tab Objects
     y = row_start + 2 * element_height + 4 * v_spacing;
     if (!LabelCreate(m_LblMagics, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblMagics", "Magic numbers:"))                                       return false;
-    if (!EditCreate(m_EdtMagics, second_column_magic_start, y, second_column_magic_end, y + element_height, "m_EdtMagics", ""))                                                               return false;
-    if (!CheckBoxCreate(m_ChkExcludeMagics, third_column_magic_start, y, panel_farther_end, y + element_height, "m_ChkExcludeMagics", "Exclude"))             return false;
+    if (!EditCreate(m_EdtMagics, second_column_magic_start, y, second_column_magic_end, y + element_height, "m_EdtMagics", "", "You can use a comma, a semicolon, or a space to separate magic numbers."))                                                               return false;
+    if (!CheckBoxCreate(m_ChkExcludeMagics, third_column_magic_start, y, panel_farther_end, y + element_height, "m_ChkExcludeMagics", "Exclude", "If ticked, the trades with the given magic numbers will be excluded from processing by the Account Protector."))             return false;
     y += element_height + v_spacing;
     string m_RgpInstrumentFilter_Text[5] = {"Do not filter by trading instrument", "Use only with current trading instrument", "Exclude current trading instrument", "Include listed trading instruments only", "Exclude listed trading instruments"};
     if (!RadioGroupCreate(m_RgpInstrumentFilter, first_column_start, y, second_column_magic_end, y + element_height * 5, "m_RgpInstrumentFilter", m_RgpInstrumentFilter_Text))            return false;
     y += element_height * 5 + v_spacing;
     if (!LabelCreate(m_LblInstruments, first_column_start, y, panel_farther_end, y + element_height, "m_LblInstruments", "List of included/excluded trading instruments:"))                                       return false;
     y += element_height + v_spacing;
-    if (!EditCreate(m_EdtInstruments, first_column_start, y, panel_farther_end, y + element_height, "m_EdtInstruments", ""))                                                               return false;
+    if (!EditCreate(m_EdtInstruments, first_column_start, y, panel_farther_end, y + element_height, "m_EdtInstruments", "", "You can use a comma, a semicolon, or a space to separate symbols."))                                                               return false;
     y += element_height + v_spacing;
     if (!LabelCreate(m_LblOrderCommentary, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblOrderCommentary", "Order commentary"))                                       return false;
     string m_CbxOrderCommentaryCondition_Text[4] = {"contains", "equals", "excludes", "not equal"};
     if (!ComboBoxCreate(m_CbxOrderCommentaryCondition, second_column_start, y, second_column_start + narrow_edit_width, y + element_height, "m_CbxOrderCommentaryCondition", m_CbxOrderCommentaryCondition_Text))                                         return false;
     if (!EditCreate(m_EdtOrderCommentary, order_commentary_start, y, panel_farther_end, y + element_height, "m_EdtOrderCommentary", ""))                                                              return false;
     y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkIgnoreLossTrades, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_ChkIgnoreLossTrades", "Ignore losing"))             return false;
+    if (!CheckBoxCreate(m_ChkIgnoreLossTrades, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_ChkIgnoreLossTrades", "Ignore losing", "If ticked, losing trades won't be included into condition calculation."))             return false;
     if (!LabelCreate(m_LblOrderDirection, order_commentary_start, y, order_commentary_start + narrow_label_width, y + element_height, "m_LblOrderDirection", "Order direction"))                                       return false;
     string m_CbxOrderDirection_Text[3] = {"All", "Long only", "Short only"};
     if (!ComboBoxCreate(m_CbxOrderDirection, order_commentary_start + narrow_label_width + h_spacing, y, panel_farther_end, y + element_height, "m_CbxOrderDirection", m_CbxOrderDirection_Text))                                         return false;
     y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkIgnoreProfitTrades, first_column_start, y, first_column_start + normal_label_width + 2 * h_spacing, y + element_height, "m_ChkIgnoreProfitTrades", "Ignore profitable"))             return false;
+    if (!CheckBoxCreate(m_ChkIgnoreProfitTrades, first_column_start, y, first_column_start + normal_label_width + 2 * h_spacing, y + element_height, "m_ChkIgnoreProfitTrades", "Ignore profitable", "If ticked, profitable trades won't be included into condition calculation."))             return false;
     y += element_height + v_spacing;
     if (!ButtonCreate(m_BtnResetFilters, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_BtnResetFilters", "Reset filters")) return false;
 
@@ -705,88 +747,100 @@ bool CAccountProtector::CreateObjects()
     if (!DisableFloatLossRisePerc)
     {
         if (!CheckBoxCreate(m_ChkLossPerBalance, first_column_start, y, panel_end, y + element_height, "m_ChkLossPerBalance", "Floating loss rises to % of balance:"))            return false;
-        if (!EditCreate(m_EdtLossPerBalance, last_input_start, y, last_input_end, y + element_height, "m_EdtLossPerBalance", "0"))            return false;
+        if (!EditCreate(m_EdtLossPerBalance, last_input_start, y, last_input_end, y + element_height, "m_EdtLossPerBalance", "0", "Positive number only!"))            return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatLossFallPerc)
     {
         if (!CheckBoxCreate(m_ChkLossPerBalanceReverse, first_column_start, y, panel_end, y + element_height, "m_ChkLossPerBalanceReverse", "Floating loss falls to % of balance:"))          return false;
-        if (!EditCreate(m_EdtLossPerBalanceReverse, last_input_start, y, last_input_end, y + element_height, "m_EdtLossPerBalanceReverse", "0"))          return false;
+        if (!EditCreate(m_EdtLossPerBalanceReverse, last_input_start, y, last_input_end, y + element_height, "m_EdtLossPerBalanceReverse", "0", "Positive number only!"))          return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatLossRiseCurr)
     {
         if (!CheckBoxCreate(m_ChkLossQuanUnits, first_column_start, y, panel_end, y + element_height, "m_ChkLossQuanUnits", "Floating loss rises to currency units:"))            return false;
-        if (!EditCreate(m_EdtLossQuanUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtLossQuanUnits", "0"))   return false;
+        if (!EditCreate(m_EdtLossQuanUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtLossQuanUnits", "0", "Positive number only!"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatLossFallCurr)
     {
         if (!CheckBoxCreate(m_ChkLossQuanUnitsReverse, first_column_start, y, panel_end, y + element_height, "m_ChkLossQuanUnitsReverse", "Floating loss falls to currency units:"))          return false;
-        if (!EditCreate(m_EdtLossQuanUnitsReverse, last_big_input_start, y, last_input_end, y + element_height, "m_EdtLossQuanUnitsReverse", "0"))   return false;
+        if (!EditCreate(m_EdtLossQuanUnitsReverse, last_big_input_start, y, last_input_end, y + element_height, "m_EdtLossQuanUnitsReverse", "0", "Positive number only!"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatLossRisePoints)
     {
         if (!CheckBoxCreate(m_ChkLossPoints, first_column_start, y, panel_end, y + element_height, "m_ChkLossPoints", "Floating loss rises to points:"))            return false;
-        if (!EditCreate(m_EdtLossPoints, last_input_start, y, last_input_end, y + element_height, "m_EdtLossPoints", "0"))   return false;
+        if (!EditCreate(m_EdtLossPoints, last_input_start, y, last_input_end, y + element_height, "m_EdtLossPoints", "0", "Positive number only!"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatLossFallPoints)
     {
         if (!CheckBoxCreate(m_ChkLossPointsReverse, first_column_start, y, panel_end, y + element_height, "m_ChkLossPointsReverse", "Floating loss falls to points:"))          return false;
-        if (!EditCreate(m_EdtLossPointsReverse, last_input_start, y, last_input_end, y + element_height, "m_EdtLossPointsReverse", "0"))   return false;
+        if (!EditCreate(m_EdtLossPointsReverse, last_input_start, y, last_input_end, y + element_height, "m_EdtLossPointsReverse", "0", "Positive number only!"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatProfitRisePerc)
     {
         if (!CheckBoxCreate(m_ChkProfPerBalance, first_column_start, y, panel_end, y + element_height, "m_ChkProfPerBalance", "Floating profit rises % of balance:"))             return false;
-        if (!EditCreate(m_EdtProfPerBalance, last_input_start, y, last_input_end, y + element_height, "m_EdtProfPerBalance", "0"))   return false;
+        if (!EditCreate(m_EdtProfPerBalance, last_input_start, y, last_input_end, y + element_height, "m_EdtProfPerBalance", "0", "Positive number only!"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatProfitFallPerc)
     {
         if (!CheckBoxCreate(m_ChkProfPerBalanceReverse, first_column_start, y, panel_end, y + element_height, "m_ChkProfPerBalanceReverse", "Floating profit falls % of balance:"))           return false;
-        if (!EditCreate(m_EdtProfPerBalanceReverse, last_input_start, y, last_input_end, y + element_height, "m_EdtProfPerBalanceReverse", "0"))   return false;
+        if (!EditCreate(m_EdtProfPerBalanceReverse, last_input_start, y, last_input_end, y + element_height, "m_EdtProfPerBalanceReverse", "0", "Positive number only!"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatProfitRiseCurr)
     {
         if (!CheckBoxCreate(m_ChkProfQuanUnits, first_column_start, y, panel_end, y + element_height, "m_ChkProfQuanUnits", "Floating profit rises to currency units:"))          return false;
-        if (!EditCreate(m_EdtProfQuanUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtProfQuanUnits", "0"))   return false;
+        if (!EditCreate(m_EdtProfQuanUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtProfQuanUnits", "0", "Positive number only!"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatProfitFallCurr)
     {
         if (!CheckBoxCreate(m_ChkProfQuanUnitsReverse, first_column_start, y, panel_end, y + element_height, "m_ChkProfQuanUnitsReverse", "Floating profit falls to currency units:"))            return false;
-        if (!EditCreate(m_EdtProfQuanUnitsReverse, last_big_input_start, y, last_input_end, y + element_height, "m_EdtProfQuanUnitsReverse", "0"))   return false;
+        if (!EditCreate(m_EdtProfQuanUnitsReverse, last_big_input_start, y, last_input_end, y + element_height, "m_EdtProfQuanUnitsReverse", "0", "Positive number only!"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatProfitRisePoints)
     {
         if (!CheckBoxCreate(m_ChkProfPoints, first_column_start, y, panel_end, y + element_height, "m_ChkProfPoints", "Floating profit rises to points:"))          return false;
-        if (!EditCreate(m_EdtProfPoints, last_input_start, y, last_input_end, y + element_height, "m_EdtProfPoints", "0"))   return false;
+        if (!EditCreate(m_EdtProfPoints, last_input_start, y, last_input_end, y + element_height, "m_EdtProfPoints", "0", "Positive number only!"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableFloatProfitFallPoints)
     {
         if (!CheckBoxCreate(m_ChkProfPointsReverse, first_column_start, y, panel_end, y + element_height, "m_ChkProfPointsReverse", "Floating profit falls to points:"))            return false;
-        if (!EditCreate(m_EdtProfPointsReverse, last_input_start, y, last_input_end, y + element_height, "m_EdtProfPointsReverse", "0"))   return false;
+        if (!EditCreate(m_EdtProfPointsReverse, last_input_start, y, last_input_end, y + element_height, "m_EdtProfPointsReverse", "0", "Positive number only!"))   return false;
         y += element_height + v_spacing;
     }
 
-    if (!CheckBoxCreate(m_ChkEquityLessUnits, first_column_start, y, panel_end, y + element_height, "m_ChkEquityLessUnits", "Equity <= currency units:"))             return false;
-    if (!EditCreate(m_EdtEquityLessUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtEquityLessUnits", "0"))   return false;
-    y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkEquityGrUnits, first_column_start, y, panel_end, y + element_height, "m_ChkEquityGrUnits", "Equity >= currency units:"))             return false;
-    if (!EditCreate(m_EdtEquityGrUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtEquityGrUnits", "0"))   return false;
-    y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkEquityLessPerSnap, first_column_start, y, panel_end, y + element_height, "m_ChkEquityLessPerSnap", "Equity <= % of snapshot:"))          return false;
-    if (!EditCreate(m_EdtEquityLessPerSnap, last_input_start, y, last_input_end, y + element_height, "m_EdtEquityLessPerSnap", "0"))  return false;
-    y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkEquityGrPerSnap, first_column_start, y, panel_end, y + element_height, "m_ChkEquityGrPerSnap", "Equity >= % of snapshot:"))          return false;
-    if (!EditCreate(m_EdtEquityGrPerSnap, last_input_start, y, last_input_end, y + element_height, "m_EdtEquityGrPerSnap", "0")) return false;
-    y += element_height + v_spacing;
+    if (!DisableEquityUnitsLE)
+    {
+        if (!CheckBoxCreate(m_ChkEquityLessUnits, first_column_start, y, panel_end, y + element_height, "m_ChkEquityLessUnits", "Equity <= currency units:"))             return false;
+        if (!EditCreate(m_EdtEquityLessUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtEquityLessUnits", "0"))   return false;
+        y += element_height + v_spacing;
+    }
+    if (!DisableEquityUnitsGE)
+    {
+        if (!CheckBoxCreate(m_ChkEquityGrUnits, first_column_start, y, panel_end, y + element_height, "m_ChkEquityGrUnits", "Equity >= currency units:"))             return false;
+        if (!EditCreate(m_EdtEquityGrUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtEquityGrUnits", "0"))   return false;
+        y += element_height + v_spacing;
+    }
+    if (!DisableEquityPercLE)
+    {
+        if (!CheckBoxCreate(m_ChkEquityLessPerSnap, first_column_start, y, panel_end, y + element_height, "m_ChkEquityLessPerSnap", "Equity <= % of snapshot:"))          return false;
+        if (!EditCreate(m_EdtEquityLessPerSnap, last_input_start, y, last_input_end, y + element_height, "m_EdtEquityLessPerSnap", "0", "Example: Enter 90 if you want a trigger when equity decreases 10% of snapshot value."))  return false;
+        y += element_height + v_spacing;
+    }
+    if (!DisableEquityPercGE)
+    {
+        if (!CheckBoxCreate(m_ChkEquityGrPerSnap, first_column_start, y, panel_end, y + element_height, "m_ChkEquityGrPerSnap", "Equity >= % of snapshot:"))          return false;
+        if (!EditCreate(m_EdtEquityGrPerSnap, last_input_start, y, last_input_end, y + element_height, "m_EdtEquityGrPerSnap", "0", "Example: Enter 110 if you want a trigger when equity increases 10% of snapshot value.")) return false;
+        y += element_height + v_spacing;
+    }
     if (!DisableEquityMinusSnapshot)
     {
         if (!CheckBoxCreate(m_ChkEquityMinusSnapshot, first_column_start, y, panel_end, y + element_height, "m_ChkEquityMinusSnapshot", "Equity - snapshot >= currency units:"))          return false;
@@ -799,28 +853,41 @@ bool CAccountProtector::CreateObjects()
         if (!EditCreate(m_EdtSnapshotMinusEquity, last_big_input_start, y, last_input_end, y + element_height, "m_EdtSnapshotMinusEquity", "0")) return false;
         y += element_height + v_spacing;
     }
-    if (!CheckBoxCreate(m_ChkMarginLessUnits, first_column_start, y, panel_end, y + element_height, "m_ChkMarginLessUnits", "Free margin <= currency units:"))            return false;
-    if (!EditCreate(m_EdtMarginLessUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtMarginLessUnits", "0"))   return false;
-    y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkMarginGrUnits, first_column_start, y, panel_end, y + element_height, "m_ChkMarginGrUnits", "Free margin >= currency units:"))            return false;
-    if (!EditCreate(m_EdtMarginGrUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtMarginGrUnits", "0"))   return false;
-    y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkMarginLessPerSnap, first_column_start, y, panel_end, y + element_height, "m_ChkMarginLessPerSnap", "Free margin <= % of snapshot:"))             return false;
-    if (!EditCreate(m_EdtMarginLessPerSnap, last_input_start, y, last_input_end, y + element_height, "m_EdtMarginLessPerSnap", "0"))  return false;
-    y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkMarginGrPerSnap, first_column_start, y, panel_end, y + element_height, "m_ChkMarginGrPerSnap", "Free margin >= % of snapshot:"))             return false;
-    if (!EditCreate(m_EdtMarginGrPerSnap, last_input_start, y, last_input_end, y + element_height, "m_EdtMarginGrPerSnap", "0"))   return false;
+    if (!DisableMarginUnitsLE)
+    {
+        if (!CheckBoxCreate(m_ChkMarginLessUnits, first_column_start, y, panel_end, y + element_height, "m_ChkMarginLessUnits", "Free margin <= currency units:"))            return false;
+        if (!EditCreate(m_EdtMarginLessUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtMarginLessUnits", "0"))   return false;
+        y += element_height + v_spacing;
+    }
+    if (!DisableMarginUnitsGE)
+    {
+        if (!CheckBoxCreate(m_ChkMarginGrUnits, first_column_start, y, panel_end, y + element_height, "m_ChkMarginGrUnits", "Free margin >= currency units:"))            return false;
+        if (!EditCreate(m_EdtMarginGrUnits, last_big_input_start, y, last_input_end, y + element_height, "m_EdtMarginGrUnits", "0"))   return false;
+        y += element_height + v_spacing;
+    }
+    if (!DisableMarginPercLE)
+    {
+        if (!CheckBoxCreate(m_ChkMarginLessPerSnap, first_column_start, y, panel_end, y + element_height, "m_ChkMarginLessPerSnap", "Free margin <= % of snapshot:"))             return false;
+        if (!EditCreate(m_EdtMarginLessPerSnap, last_input_start, y, last_input_end, y + element_height, "m_EdtMarginLessPerSnap", "0", "Example: Enter 90 if you want a trigger when free margin decreases 10% of snapshot value."))  return false;
+        y += element_height + v_spacing;
+    }
+    if (!DisableMarginPercGE)
+    {
+        if (!CheckBoxCreate(m_ChkMarginGrPerSnap, first_column_start, y, panel_end, y + element_height, "m_ChkMarginGrPerSnap", "Free margin >= % of snapshot:"))             return false;
+        if (!EditCreate(m_EdtMarginGrPerSnap, last_input_start, y, last_input_end, y + element_height, "m_EdtMarginGrPerSnap", "0", "Example: Enter 110 if you want a trigger when free margin increases 10% of snapshot value."))   return false;
+        y += element_height + v_spacing;
+    }
 
     if (!DisableCurrentPriceGE)
     {
         if (!CheckBoxCreate(m_ChkPriceGE, first_column_start, y, panel_end, y + element_height, "m_ChkPriceGE", "Current price >="))            return false;
-        if (!EditCreate(m_EdtPriceGE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtPriceGE", "0"))   return false;
+        if (!EditCreate(m_EdtPriceGE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtPriceGE", "0", "Enter price level"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableCurrentPriceLE)
     {
         if (!CheckBoxCreate(m_ChkPriceLE, first_column_start, y, panel_end, y + element_height, "m_ChkPriceLE", "Current price <="))            return false;
-        if (!EditCreate(m_EdtPriceLE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtPriceLE", "0"))   return false;
+        if (!EditCreate(m_EdtPriceLE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtPriceLE", "0", "Enter price level"))   return false;
         y += element_height + v_spacing;
     }
 
@@ -840,13 +907,13 @@ bool CAccountProtector::CreateObjects()
     if (!DisableSpreadGE)
     {
         if (!CheckBoxCreate(m_ChkSpreadGE, first_column_start, y, panel_end, y + element_height, "m_ChkSpreadGE", "Spread >= points"))            return false;
-        if (!EditCreate(m_EdtSpreadGE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtSpreadGE", "0"))   return false;
+        if (!EditCreate(m_EdtSpreadGE, last_input_start, y, last_input_end, y + element_height, "m_EdtSpreadGE", "0", "Enter integer value"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableSpreadLE)
     {
         if (!CheckBoxCreate(m_ChkSpreadLE, first_column_start, y, panel_end, y + element_height, "m_ChkSpreadLE", "Spread <= points"))            return false;
-        if (!EditCreate(m_EdtSpreadLE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtSpreadLE", "0"))   return false;
+        if (!EditCreate(m_EdtSpreadLE, last_input_start, y, last_input_end, y + element_height, "m_EdtSpreadLE", "0", "Enter integer value"))   return false;
         y += element_height + v_spacing;
     }
 
@@ -866,58 +933,78 @@ bool CAccountProtector::CreateObjects()
     if (!DisableDailyProfitLossPointsGE)
     {
         if (!CheckBoxCreate(m_ChkDailyProfitLossPointsGE, first_column_start, y, panel_end, y + element_height, "m_ChkDailyProfitLossPointsGE", "Daily profit/loss >= points"))            return false;
-        if (!EditCreate(m_EdtDailyProfitLossPointsGE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtDailyProfitLossPointsGE", "0"))   return false;
+        if (!EditCreate(m_EdtDailyProfitLossPointsGE, last_input_start, y, last_input_end, y + element_height, "m_EdtDailyProfitLossPointsGE", "0", "Positive or negative"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableDailyProfitLossPointsLE)
     {
         if (!CheckBoxCreate(m_ChkDailyProfitLossPointsLE, first_column_start, y, panel_end, y + element_height, "m_ChkDailyProfitLossPointsLE", "Daily profit/loss <= points"))            return false;
-        if (!EditCreate(m_EdtDailyProfitLossPointsLE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtDailyProfitLossPointsLE", "0"))   return false;
+        if (!EditCreate(m_EdtDailyProfitLossPointsLE, last_input_start, y, last_input_end, y + element_height, "m_EdtDailyProfitLossPointsLE", "0", "Positive or negative"))   return false;
         y += element_height + v_spacing;
     }
 
     if (!DisableDailyProfitLossPercGE)
     {
         if (!CheckBoxCreate(m_ChkDailyProfitLossPercGE, first_column_start, y, panel_end, y + element_height, "m_ChkDailyProfitLossPercGE", "Daily profit/loss >= % of balance"))            return false;
-        if (!EditCreate(m_EdtDailyProfitLossPercGE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtDailyProfitLossPercGE", "0"))   return false;
+        if (!EditCreate(m_EdtDailyProfitLossPercGE, last_input_start, y, last_input_end, y + element_height, "m_EdtDailyProfitLossPercGE", "0", "Positive or negative"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableDailyProfitLossPercLE)
     {
         if (!CheckBoxCreate(m_ChkDailyProfitLossPercLE, first_column_start, y, panel_end, y + element_height, "m_ChkDailyProfitLossPercLE", "Daily profit/loss <= % of balance"))            return false;
-        if (!EditCreate(m_EdtDailyProfitLossPercLE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtDailyProfitLossPercLE", "0"))   return false;
+        if (!EditCreate(m_EdtDailyProfitLossPercLE, last_input_start, y, last_input_end, y + element_height, "m_EdtDailyProfitLossPercLE", "0", "Positive or negative"))   return false;
         y += element_height + v_spacing;
     }
 
     if (!DisableNumberOfPositionsGE)
     {
         if (!CheckBoxCreate(m_ChkNumberOfPositionsGE, first_column_start, y, panel_end, y + element_height, "m_ChkNumberOfPositionsGE", "Number of positions >= "))            return false;
-        if (!EditCreate(m_EdtNumberOfPositionsGE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfPositionsGE", "0"))   return false;
+        if (!EditCreate(m_EdtNumberOfPositionsGE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfPositionsGE", "0", "Enter integer value"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableNumberOfOrdersGE)
     {
         if (!CheckBoxCreate(m_ChkNumberOfOrdersGE, first_column_start, y, panel_end, y + element_height, "m_ChkNumberOfOrdersGE", "Number of pending orders >= "))            return false;
-        if (!EditCreate(m_EdtNumberOfOrdersGE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfOrdersGE", "0"))   return false;
+        if (!EditCreate(m_EdtNumberOfOrdersGE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfOrdersGE", "0", "Enter integer value"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableNumberOfPositionsLE)
     {
         if (!CheckBoxCreate(m_ChkNumberOfPositionsLE, first_column_start, y, panel_end, y + element_height, "m_ChkNumberOfPositionsLE", "Number of positions <= "))            return false;
-        if (!EditCreate(m_EdtNumberOfPositionsLE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfPositionsLE", "0"))   return false;
+        if (!EditCreate(m_EdtNumberOfPositionsLE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfPositionsLE", "0", "Enter integer value"))   return false;
         y += element_height + v_spacing;
     }
     if (!DisableNumberOfOrdersLE)
     {
         if (!CheckBoxCreate(m_ChkNumberOfOrdersLE, first_column_start, y, panel_end, y + element_height, "m_ChkNumberOfOrdersLE", "Number of pending orders <= "))            return false;
-        if (!EditCreate(m_EdtNumberOfOrdersLE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfOrdersLE", "0"))   return false;
+        if (!EditCreate(m_EdtNumberOfOrdersLE, last_input_start, y, last_input_end, y + element_height, "m_EdtNumberOfOrdersLE", "0", "Enter integer value"))   return false;
+        y += element_height + v_spacing;
+    }
+
+    if (!DisableBalanceGE)
+    {
+        if (!CheckBoxCreate(m_ChkBalanceGE, first_column_start, y, panel_end, y + element_height, "m_ChkBalanceGE", "Balance >= currency units"))            return false;
+        if (!EditCreate(m_EdtBalanceGE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtBalanceGE", "0"))   return false;
+        y += element_height + v_spacing;
+    }
+    if (!DisableBalanceLE)
+    {
+        if (!CheckBoxCreate(m_ChkBalanceLE, first_column_start, y, panel_end, y + element_height, "m_ChkBalanceLE", "Balance <= currency units"))            return false;
+        if (!EditCreate(m_EdtBalanceLE, last_big_input_start, y, last_input_end, y + element_height, "m_EdtBalanceLE", "0"))   return false;
+        y += element_height + v_spacing;
+    }
+
+    if (!DisableListenToSignal)
+    {
+        if (!CheckBoxCreate(m_ChkListenToSignal, first_column_start, y, panel_end, y + element_height, "m_ChkListenToSignal", "Signal from another AP on channel ", "Signal from another Account Protector received"))            return false;
+        if (!EditCreate(m_EdtListenToSignal, last_input_start, y, last_input_end, y + element_height, "m_EdtListenToSignal", "0", "Signal channel to listen to"))   return false;
         y += element_height + v_spacing;
     }
 
     // Actions Tab Objects
     y = row_start + 2 * element_height + 4 * v_spacing;
     if (!CheckBoxCreate(m_ChkClosePos, first_column_start, y, first_column_start + narrowest_edit_width, y + element_height, "m_ChkClosePos", "Close "))          return false;
-    if (!EditCreate(m_EdtClosePercentage, first_column_start + narrowest_edit_width + v_spacing, y, first_column_start + narrowest_edit_width + v_spacing + narrowest_edit_width, y + element_height, "m_EdtClosePercentage", "100"))             return false;
+    if (!EditCreate(m_EdtClosePercentage, first_column_start + narrowest_edit_width + v_spacing, y, first_column_start + narrowest_edit_width + v_spacing + narrowest_edit_width, y + element_height, "m_EdtClosePercentage", "100", "Volume percentage"))             return false;
     if (!LabelCreate(m_LblClosePosSuffix, first_column_start + narrowest_edit_width + v_spacing + narrowest_edit_width + v_spacing, y, first_column_start + narrowest_edit_width + v_spacing + narrowest_edit_width + shortest_edit_width, y + element_height, "m_LblClosePosSuffix", "% of "))                                       return false;
     if (!ButtonCreate(m_BtnPositionStatus, first_column_start + narrowest_edit_width + v_spacing + narrowest_edit_width + shortest_edit_width, y, first_column_start + narrowest_edit_width + v_spacing + narrowest_edit_width + shortest_edit_width + narrow_edit_width, y + element_height, "m_BtnPositionStatus", "All")) return false;
     if (!LabelCreate(m_LblClosePosPostfix, first_column_start + narrowest_edit_width + v_spacing + narrowest_edit_width + shortest_edit_width + narrow_edit_width, y, panel_end, y + element_height, "m_LblClosePosPostfix", " positions' volume."))                                          return false;
@@ -926,9 +1013,9 @@ bool CAccountProtector::CreateObjects()
     y += element_height + v_spacing;
     if (!CheckBoxCreate(m_ChkDisAuto, first_column_start, y, panel_end, y + element_height, "m_ChkDisAuto", "Disable autotrading"))           return false;
     y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkSendMails, first_column_start, y, panel_end, y + element_height, "m_ChkSendMails", "Send e-mail"))           return false;
+    if (!CheckBoxCreate(m_ChkSendMails, first_column_start, y, panel_end, y + element_height, "m_ChkSendMails", "Send e-mail", "Has to be configured via Tools->Options->Email"))           return false;
     y += element_height + v_spacing;
-    if (!CheckBoxCreate(m_ChkSendNotif, first_column_start, y, panel_end, y + element_height, "m_ChkSendNotif", "Send push notification"))            return false;
+    if (!CheckBoxCreate(m_ChkSendNotif, first_column_start, y, panel_end, y + element_height, "m_ChkSendNotif", "Send push notification", "Has to be configured via Tools->Options->Notifications"))            return false;
     y += element_height + v_spacing;
     if (!CheckBoxCreate(m_ChkClosePlatform, first_column_start, y, panel_end, y + element_height, "m_ChkClosePlatform", "Close platform"))            return false;
     y += element_height + v_spacing;
@@ -937,8 +1024,12 @@ bool CAccountProtector::CreateObjects()
     if (!CheckBoxCreate(m_ChkRecaptureSnapshots, first_column_start, y, panel_end, y + element_height, "m_ChkRecaptureSnapshots", "Recapture snapshots"))             return false;
     y += element_height + v_spacing;
     if (!CheckBoxCreate(m_ChkCloseAllOtherCharts, first_column_start, y, panel_end, y + element_height, "m_ChkCloseAllOtherCharts", "Close all other charts"))             return false;
+    y += element_height + v_spacing;
+    if (!CheckBoxCreate(m_ChkEmitSignal, first_column_start, y, first_column_start + narrow_label_width * 3, y + element_height, "m_ChkEmitSignal", "Emit signal for another AP on channel ", "Emit signal for another Account Protector instance"))             return false;
+    if (!EditCreate(m_EdtSignalChannel, first_column_start + narrow_label_width * 3 + v_spacing, y, first_column_start + narrow_label_width * 3 + v_spacing + narrowest_edit_width, y + element_height, "m_EdtSignalChannel", "0", "Signal channel to emit on"))             return false;
 
     InitObjects();
+
     return true;
 }
 
@@ -978,22 +1069,26 @@ bool CAccountProtector::InitObjects()
     if (!DisableNumberOfOrdersGE) if (!m_EdtNumberOfOrdersGE.TextAlign(align)) return false;
     if (!DisableNumberOfPositionsLE) if (!m_EdtNumberOfPositionsLE.TextAlign(align)) return false;
     if (!DisableNumberOfOrdersLE) if (!m_EdtNumberOfOrdersLE.TextAlign(align)) return false;
-    if (!m_EdtEquityLessUnits.TextAlign(align)) return false;
-    if (!m_EdtEquityGrUnits.TextAlign(align)) return false;
-    if (!m_EdtEquityLessPerSnap.TextAlign(align)) return false;
-    if (!m_EdtEquityGrPerSnap.TextAlign(align)) return false;
+    if (!DisableEquityUnitsLE) if (!m_EdtEquityLessUnits.TextAlign(align)) return false;
+    if (!DisableEquityUnitsGE) if (!m_EdtEquityGrUnits.TextAlign(align)) return false;
+    if (!DisableEquityPercLE) if (!m_EdtEquityLessPerSnap.TextAlign(align)) return false;
+    if (!DisableEquityPercGE) if (!m_EdtEquityGrPerSnap.TextAlign(align)) return false;
     if (!DisableEquityMinusSnapshot) if (!m_EdtEquityMinusSnapshot.TextAlign(align)) return false;
     if (!DisableSnapshotMinusEquity) if (!m_EdtSnapshotMinusEquity.TextAlign(align)) return false;
-    if (!m_EdtMarginLessUnits.TextAlign(align)) return false;
-    if (!m_EdtMarginLessPerSnap.TextAlign(align)) return false;
-    if (!m_EdtMarginGrUnits.TextAlign(align)) return false;
-    if (!m_EdtMarginGrPerSnap.TextAlign(align)) return false;
+    if (!DisableMarginUnitsLE) if (!m_EdtMarginLessUnits.TextAlign(align)) return false;
+    if (!DisableMarginUnitsGE) if (!m_EdtMarginLessPerSnap.TextAlign(align)) return false;
+    if (!DisableMarginPercLE) if (!m_EdtMarginGrUnits.TextAlign(align)) return false;
+    if (!DisableMarginPercGE) if (!m_EdtMarginGrPerSnap.TextAlign(align)) return false;
+    if (!DisableBalanceGE) if (!m_EdtBalanceGE.TextAlign(align)) return false;
+    if (!DisableBalanceLE) if (!m_EdtBalanceLE.TextAlign(align)) return false;
+    if (!DisableListenToSignal) if (!m_EdtListenToSignal.TextAlign(align)) return false;
     if (!m_EdtTrailingStart.TextAlign(align)) return false;
     if (!m_EdtTrailingStep.TextAlign(align)) return false;
     if (!m_EdtBreakEven.TextAlign(align)) return false;
     if (!m_EdtBreakEvenExtra.TextAlign(align)) return false;
     if (!m_EdtEquityTrailingStop.TextAlign(align)) return false;
     if (!m_EdtClosePercentage.TextAlign(align)) return false;
+    if (!m_EdtSignalChannel.TextAlign(align)) return false;
 
     ShowSelectedTab();
 
@@ -1103,7 +1198,10 @@ void CAccountProtector::MoveAndResize()
     }
     else if (sets.SelectedTab == ConditionsTab)
     {
-        if (!DisableNumberOfOrdersLE) ref_point = m_EdtNumberOfOrdersLE.Top();
+        if (!DisableListenToSignal) ref_point = m_EdtListenToSignal.Top();
+        else if (!DisableBalanceLE) ref_point = m_EdtBalanceLE.Top();
+        else if (!DisableBalanceGE) ref_point = m_EdtBalanceGE.Top();
+        else if (!DisableNumberOfOrdersLE) ref_point = m_EdtNumberOfOrdersLE.Top();
         else if (!DisableNumberOfPositionsLE) ref_point = m_EdtNumberOfPositionsLE.Top();
         else if (!DisableNumberOfOrdersGE) ref_point = m_EdtNumberOfOrdersGE.Top();
         else if (!DisableNumberOfPositionsGE) ref_point = m_EdtNumberOfPositionsGE.Top();
@@ -1119,11 +1217,33 @@ void CAccountProtector::MoveAndResize()
         else if (!DisableMarginLevelGE) ref_point = m_EdtMarginLevelGE.Top();
         else if (!DisableCurrentPriceLE) ref_point = m_EdtPriceLE.Top();
         else if (!DisableCurrentPriceGE) ref_point = m_EdtPriceGE.Top();
-        else ref_point = m_EdtMarginGrPerSnap.Top();
+        else if (!DisableMarginPercGE) ref_point = m_EdtMarginGrPerSnap.Top();
+        else if (!DisableMarginPercLE) ref_point = m_EdtMarginLessPerSnap.Top();
+        else if (!DisableMarginUnitsGE) ref_point = m_EdtMarginGrUnits.Top();
+        else if (!DisableMarginUnitsLE) ref_point = m_EdtMarginLessUnits.Top();
+        else if (!DisableSnapshotMinusEquity) ref_point = m_EdtSnapshotMinusEquity.Top();
+        else if (!DisableEquityMinusSnapshot) ref_point = m_EdtEquityMinusSnapshot.Top();
+        else if (!DisableEquityPercGE) ref_point = m_EdtEquityGrPerSnap.Top();
+        else if (!DisableEquityPercLE) ref_point = m_EdtEquityLessPerSnap.Top();
+        else if (!DisableEquityUnitsGE) ref_point = m_EdtEquityGrUnits.Top();
+        else if (!DisableEquityUnitsLE) ref_point = m_EdtEquityLessUnits.Top();
+        else if (!DisableFloatProfitFallPoints) ref_point = m_EdtProfPointsReverse.Top();
+        else if (!DisableFloatProfitRisePoints) ref_point = m_EdtProfPoints.Top();
+        else if (!DisableFloatProfitFallCurr) ref_point = m_EdtProfQuanUnitsReverse.Top();
+        else if (!DisableFloatProfitRiseCurr) ref_point = m_EdtProfQuanUnits.Top();
+        else if (!DisableFloatProfitFallPerc) ref_point = m_EdtProfPerBalanceReverse.Top();
+        else if (!DisableFloatProfitRisePerc) ref_point = m_EdtProfPerBalance.Top();
+        else if (!DisableFloatLossFallPoints) ref_point = m_EdtLossPointsReverse.Top();
+        else if (!DisableFloatLossRisePoints) ref_point = m_EdtLossPoints.Top();
+        else if (!DisableFloatLossFallCurr) ref_point = m_EdtLossQuanUnitsReverse.Top();
+        else if (!DisableFloatLossRiseCurr) ref_point = m_EdtLossQuanUnits.Top();
+        else if (!DisableFloatLossFallPerc) ref_point = m_EdtLossPerBalanceReverse.Top();
+        else if (!DisableFloatLossRisePerc) ref_point = m_EdtLossPerBalance.Top();
+        else ref_point = m_LblURL.Top();
     }
     else if (sets.SelectedTab == ActionsTab)
     {
-        ref_point = m_ChkCloseAllOtherCharts.Top();
+        ref_point = m_ChkEmitSignal.Top();
     }
 
     m_LblURL.Move(m_LblURL.Left(), ref_point + col_height);
@@ -1185,7 +1305,180 @@ bool CAccountProtector::RefreshValues()
     if (IsANeedToContinueClosingPositions) Close_All_Positions();
     if (IsANeedToContinueDeletingPendingOrders) Delete_All_Pending_Orders();
 
+    CalculateDailyProfitLossAndStartingBalance();
+
     return true;
+}
+
+void CAccountProtector::CalculateDailyProfitLossAndStartingBalance()
+{
+    DailyStartingBalance = 0;
+    DailyProfitLossPerc = 0;
+    DailyProfitLossPoints = 0;
+    DailyProfitLossUnits = 0;
+    double realized_daily_profit_loss_units = 0;
+    int realized_daily_profit_loss_points = 0;
+
+    FloatingProfit = 0;
+    FloatingProfitPoints = 0;
+    NumberOfMarketOrders = 0;
+    NumberOfPendingOrders = 0;
+    // Calculating floating profit/loss.
+    for (int i = 0; i < PositionsTotal(); i++)
+    {
+        ulong ticket = PositionGetTicket(i);
+        if (ticket <= 0)
+        {
+            Logging("Account Protector: PositionGetTicket failed " + IntegerToString(GetLastError()));
+            continue;
+        }
+
+		if (CheckFilterLossProfit(PositionGetDouble(POSITION_PROFIT))) continue;
+        if (CheckFilterSymbol(PositionGetString(POSITION_SYMBOL))) continue;
+        if (CheckFilterComment(PositionGetString(POSITION_COMMENT))) continue;
+        if (CheckFilterDirection((int)PositionGetInteger(POSITION_TYPE))) continue;
+        // Starting from -1 index to check for positions irrespective of their Magic numbers.
+        for (int j = -1; j < magic_array_counter; j++)
+        {
+            if ((magic_array_counter > 0) && (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j))) continue;
+
+            FloatingProfit += PositionGetDouble(POSITION_PROFIT);
+            if (sets.CountCommSwaps) FloatingProfit += HistoryDealGetDouble(ticket, DEAL_COMMISSION) + PositionGetDouble(POSITION_SWAP);
+
+            if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) FloatingProfitPoints += (int)MathRound((SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT));
+            else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL) FloatingProfitPoints += (int)MathRound((PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT));
+            NumberOfMarketOrders++;
+            break; // Position already processed - no point to process this order with other magic numbers.
+        }
+    }
+
+    // Calculating the number of pending orders (if necessary).
+    if ((!DisableNumberOfOrdersGE) || (!DisableNumberOfOrdersLE))
+    {
+        for (int i = 0; i < OrdersTotal(); i++)
+        {
+            ulong ticket = OrderGetTicket(i);
+            if (ticket <= 0)
+            {
+                Logging("Account Protector: OrderGetTicket failed " + IntegerToString(GetLastError()));
+                continue;
+            }
+    
+            if (CheckFilterSymbol(OrderGetString(ORDER_SYMBOL))) continue;
+            if (CheckFilterComment(OrderGetString(ORDER_COMMENT))) continue;
+            if (CheckFilterDirection((int)OrderGetInteger(ORDER_TYPE))) continue;
+            // Starting from -1 index to check for positions irrespective of their Magic numbers.
+            for (int j = -1; j < magic_array_counter; j++)
+            {
+                if ((magic_array_counter > 0) && (CheckFilterMagic(OrderGetInteger(ORDER_MAGIC), j))) continue;
+                NumberOfPendingOrders++;
+                break; // Order already processed - no point to process this order with other magic numbers.
+            }
+        }
+    }
+
+    // Calculating daily profit/loss if necessary.
+    if (
+        ((!DisableDailyProfitLossUnitsGE) && (sets.boolDailyProfitLossUnitsGE)) ||
+        ((!DisableDailyProfitLossUnitsLE) && (sets.boolDailyProfitLossUnitsLE)) ||
+        ((!DisableDailyProfitLossPointsGE) && (sets.boolDailyProfitLossPointsGE)) ||
+        ((!DisableDailyProfitLossPointsLE) && (sets.boolDailyProfitLossPointsLE)) ||
+        (!DisableDailyProfitLossPercGE) || (!DisableDailyProfitLossPercLE)
+       )
+    {
+        // Required for daily profit/loss in points.
+        ulong exit_deal_tickets[], exit_deal_pos_ids[];
+        double exit_deal_exit_prices[];
+        int cnt = 0;
+        // Cycle through daily exit deals.
+        datetime start_of_today = StringToTime(TimeToString(TimeCurrent(), TIME_DATE)); // 00:00 of the current day by broker's time.
+        HistorySelect(start_of_today, TimeCurrent()); // Today.
+        int deals_total = HistoryDealsTotal();
+        for (int i = 0; i < deals_total; i++)
+        {
+            ulong deal_ticket = HistoryDealGetTicket(i);
+            if (deal_ticket == 0)
+            {
+                Logging("Account Protector: HistoryDealGetTicket failed " + IntegerToString(GetLastError()));
+                continue;
+            }
+            if ((HistoryDealGetInteger(deal_ticket, DEAL_TYPE) != DEAL_TYPE_BUY) && (HistoryDealGetInteger(deal_ticket, DEAL_TYPE) != DEAL_TYPE_SELL)) continue; // Wrong kinds of deals.
+            if (CheckFilterLossProfit(HistoryDealGetDouble(deal_ticket, DEAL_PROFIT))) continue;
+            if (CheckFilterSymbol(HistoryDealGetString(deal_ticket, DEAL_SYMBOL))) continue;
+            if (CheckFilterComment(HistoryDealGetString(deal_ticket, DEAL_COMMENT))) continue;
+            if (CheckFilterDirection((int)HistoryDealGetInteger(deal_ticket, DEAL_TYPE))) continue;
+            // Starting from -1 index to check for orders irrespective of their Magic numbers.
+            for (int j = -1; j < magic_array_counter; j++)
+            {
+                if ((magic_array_counter > 0) && (CheckFilterMagic(HistoryDealGetInteger(deal_ticket, DEAL_MAGIC), j))) continue;
+    
+                if (HistoryDealGetInteger(deal_ticket, DEAL_ENTRY) == DEAL_ENTRY_IN) // Only for commission tracking.
+                {
+                    if (sets.CountCommSwaps) realized_daily_profit_loss_units += HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
+                    break;
+                }
+
+                // Record all the deals to caclulate daily points profit/loss.
+                ArrayResize(exit_deal_tickets, cnt + 1, 100);
+                ArrayResize(exit_deal_pos_ids, cnt + 1, 100);
+                ArrayResize(exit_deal_exit_prices, cnt + 1, 100);
+                exit_deal_tickets[cnt] = deal_ticket;
+                exit_deal_pos_ids[cnt] = HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID);
+                exit_deal_exit_prices[cnt] = HistoryDealGetDouble(deal_ticket, DEAL_PRICE);
+                cnt++;
+                
+                realized_daily_profit_loss_units += HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
+                if (sets.CountCommSwaps) realized_daily_profit_loss_units += HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION) + HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
+                break; // Order already processed - no point to process this order with other magic numbers.
+            }
+        }
+
+        // Only if we need daily points profit/loss.
+        if (((!DisableDailyProfitLossPointsGE) && (sets.boolDailyProfitLossPointsGE)) ||
+            ((!DisableDailyProfitLossPointsLE) && (sets.boolDailyProfitLossPointsLE)))
+        {
+            // Run another cycle through that array to get all relevant (by pos_id) entry deals.
+            // In fact, we don't need all. We just need the first one, which is an entry deal and isn't the same as the exit deal - this can happen we have an IN_OUT deal.
+            for (int i = 0; i < cnt; i++)
+            {
+                HistorySelectByPosition(exit_deal_pos_ids[i]);
+                for (int y = 0; y < HistoryDealsTotal(); y++)
+                {
+                    ulong entry_deal_ticket = HistoryDealGetTicket(y);
+                    if (HistoryDealGetInteger(entry_deal_ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT) continue; // Not an entry deal.
+                    if (entry_deal_ticket == exit_deal_tickets[i]) continue; // Same deal.
+
+                    // Use the first applicable entry deal's price as an entry price for daily point profit/loss calculation.
+                    double deal_entry_price = HistoryDealGetDouble(entry_deal_ticket, DEAL_PRICE);
+
+                    // This is a very crude and imprecise method when used on a Netting account, but calculating points profit/loss across uninformly sized positions is crazy to start with.
+                    if (HistoryDealGetInteger(entry_deal_ticket, DEAL_TYPE) == DEAL_TYPE_BUY) realized_daily_profit_loss_points += (int)MathRound((exit_deal_exit_prices[i] - deal_entry_price) / SymbolInfoDouble(HistoryDealGetString(entry_deal_ticket, DEAL_SYMBOL), SYMBOL_POINT));
+                    else if (HistoryDealGetInteger(entry_deal_ticket, DEAL_TYPE) == DEAL_TYPE_SELL) realized_daily_profit_loss_points += (int)MathRound((deal_entry_price - exit_deal_exit_prices[i]) / SymbolInfoDouble(HistoryDealGetString(entry_deal_ticket, DEAL_SYMBOL), SYMBOL_POINT));
+                    break; // Move on to the next exit deal.
+                }
+            }
+        }
+        DailyProfitLossUnits = realized_daily_profit_loss_units;
+        DailyProfitLossPoints = realized_daily_profit_loss_points;
+        if (CountFloatingInDailyPL)
+        {
+            // Current floating profit/loss is a part of the daily profit/loss.
+            DailyProfitLossUnits += FloatingProfit;
+            DailyProfitLossPoints += FloatingProfitPoints;
+        }
+        // Percentage of balance at the start of the day calculated by subtracting the current daily profit from the current balance.
+//Print("daily_profit_loss_units = ", daily_profit_loss_units);
+//Print("prev balance = ", AccountInfoDouble(ACCOUNT_BALANCE) - realized_daily_profit_loss_units);
+        DailyStartingBalance = AccountInfoDouble(ACCOUNT_BALANCE) - realized_daily_profit_loss_units;
+        if ((!DisableDailyProfitLossPercGE) || (!DisableDailyProfitLossPercLE))
+        {
+            if (DailyStartingBalance != 0) DailyProfitLossPerc = DailyProfitLossUnits / DailyStartingBalance * 100;
+            else DailyProfitLossPerc = 100; // Zero-divide protection
+        }
+
+        if (!DisableDailyProfitLossPercGE) m_ChkDailyProfitLossPercGE.Text("Daily profit/loss >= % of balance (" + DoubleToString(DailyStartingBalance, 2) + "):");
+        if (!DisableDailyProfitLossPercLE) m_ChkDailyProfitLossPercLE.Text("Daily profit/loss <= % of balance (" + DoubleToString(DailyStartingBalance, 2) + "):");
+    }
 }
 
 // Updates all panel controls depending on the settings in sets struct.
@@ -1222,6 +1515,10 @@ void CAccountProtector::RefreshPanelControls()
 
     // Refresh time type radio group.
     m_RgpTimeType.Value(sets.intTimeType);
+
+    // RefreshConditions() is used for non-condition stuff on the Main tab. The following two lines prevent them from resetting in case all the Conditions tab's conditions have to be reset.
+    bool tmp_ResetAllTickedConditions = ResetAllTickedConditions;
+    ResetAllTickedConditions = false;
 
     // Refresh trailing stop start fields.
     RefreshConditions(sets.boolTrailingStart, sets.intTrailingStart, m_ChkTrailingStart, m_EdtTrailingStart, 0);
@@ -1279,7 +1576,8 @@ void CAccountProtector::RefreshPanelControls()
     m_ChkIgnoreProfitTrades.Checked(sets.boolIgnoreProfitTrades);
 
     // Conditions tab
-
+    TotalConditionsNumber = 0;
+    ResetAllTickedConditions = tmp_ResetAllTickedConditions;
     // Refresh "Floating loss rises to % of balance" fields.
     if (!DisableFloatLossRisePerc) RefreshConditions(sets.boolLossPerBalance, sets.doubleLossPerBalance, m_ChkLossPerBalance, m_EdtLossPerBalance);
 
@@ -1317,20 +1615,26 @@ void CAccountProtector::RefreshPanelControls()
     if (!DisableFloatProfitFallPoints) RefreshConditions(sets.boolProfPointsReverse, sets.intProfPointsReverse, m_ChkProfPointsReverse, m_EdtProfPointsReverse, 0);
 
     // Refresh "Equity <= currency units" fields.
-    RefreshConditions(sets.boolEquityLessUnits, sets.doubleEquityLessUnits, m_ChkEquityLessUnits, m_EdtEquityLessUnits, AccountCurrencyDigits);
+    if (!DisableEquityUnitsLE) RefreshConditions(sets.boolEquityLessUnits, sets.doubleEquityLessUnits, m_ChkEquityLessUnits, m_EdtEquityLessUnits, AccountCurrencyDigits);
 
     // Refresh "Equity >= currency units" fields.
-    RefreshConditions(sets.boolEquityGrUnits, sets.doubleEquityGrUnits, m_ChkEquityGrUnits, m_EdtEquityGrUnits, AccountCurrencyDigits);
+    if (!DisableEquityUnitsGE) RefreshConditions(sets.boolEquityGrUnits, sets.doubleEquityGrUnits, m_ChkEquityGrUnits, m_EdtEquityGrUnits, AccountCurrencyDigits);
 
     // Refresh "Equity <= % of snapshot" fields.
-    RefreshConditions(sets.boolEquityLessPerSnap, sets.doubleEquityLessPerSnap, m_ChkEquityLessPerSnap, m_EdtEquityLessPerSnap);
-    if (sets.SnapEquityTime != "") m_ChkEquityLessPerSnap.Text("Equity <= % of snapshot (" + DoubleToString(sets.SnapEquity, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk + ":");
-    else m_ChkEquityLessPerSnap.Text("Equity <= % of snapshot:");
+    if (!DisableEquityPercLE)
+    {
+        RefreshConditions(sets.boolEquityLessPerSnap, sets.doubleEquityLessPerSnap, m_ChkEquityLessPerSnap, m_EdtEquityLessPerSnap);
+        if (sets.SnapEquityTime != "") m_ChkEquityLessPerSnap.Text("Equity <= % of snapshot (" + DoubleToString(sets.SnapEquity, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk + ":");
+        else m_ChkEquityLessPerSnap.Text("Equity <= % of snapshot:");
+    }
 
     // Refresh "Equity >= % of snapshot" fields.
-    RefreshConditions(sets.boolEquityGrPerSnap, sets.doubleEquityGrPerSnap, m_ChkEquityGrPerSnap, m_EdtEquityGrPerSnap);
-    if (sets.SnapEquityTime != "") m_ChkEquityGrPerSnap.Text("Equity >= % of snapshot (" + DoubleToString(sets.SnapEquity, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk + ":");
-    else m_ChkEquityGrPerSnap.Text("Equity >= % of snapshot:");
+    if (!DisableEquityPercGE)
+    {
+        RefreshConditions(sets.boolEquityGrPerSnap, sets.doubleEquityGrPerSnap, m_ChkEquityGrPerSnap, m_EdtEquityGrPerSnap);
+        if (sets.SnapEquityTime != "") m_ChkEquityGrPerSnap.Text("Equity >= % of snapshot (" + DoubleToString(sets.SnapEquity, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk + ":");
+        else m_ChkEquityGrPerSnap.Text("Equity >= % of snapshot:");
+    }
 
     // Refresh "Equity - Snapshot >= currency units" fields.
     if (!DisableEquityMinusSnapshot)
@@ -1349,20 +1653,26 @@ void CAccountProtector::RefreshPanelControls()
     }
 
     // Refresh "Free margin <= currency units" fields.
-    RefreshConditions(sets.boolMarginLessUnits, sets.doubleMarginLessUnits, m_ChkMarginLessUnits, m_EdtMarginLessUnits, AccountCurrencyDigits);
+    if (!DisableMarginUnitsLE) RefreshConditions(sets.boolMarginLessUnits, sets.doubleMarginLessUnits, m_ChkMarginLessUnits, m_EdtMarginLessUnits, AccountCurrencyDigits);
 
     // Refresh "Free margin >= currency units" fields.
-    RefreshConditions(sets.boolMarginGrUnits, sets.doubleMarginGrUnits, m_ChkMarginGrUnits, m_EdtMarginGrUnits, AccountCurrencyDigits);
+    if (!DisableMarginUnitsGE) RefreshConditions(sets.boolMarginGrUnits, sets.doubleMarginGrUnits, m_ChkMarginGrUnits, m_EdtMarginGrUnits, AccountCurrencyDigits);
 
     // Refresh "Free margin <= % of snapshot" fields.
-    RefreshConditions(sets.boolMarginLessPerSnap, sets.doubleMarginLessPerSnap, m_ChkMarginLessPerSnap, m_EdtMarginLessPerSnap);
-    if (sets.SnapMarginTime != "") m_ChkMarginLessPerSnap.Text("Free margin <= % of snapshot (" + DoubleToString(sets.SnapMargin, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk + ":");
-    else m_ChkMarginLessPerSnap.Text("Free margin <= % of snapshot:");
+    if (!DisableMarginPercLE)
+    {
+        RefreshConditions(sets.boolMarginLessPerSnap, sets.doubleMarginLessPerSnap, m_ChkMarginLessPerSnap, m_EdtMarginLessPerSnap);
+        if (sets.SnapMarginTime != "") m_ChkMarginLessPerSnap.Text("Free margin <= % of snapshot (" + DoubleToString(sets.SnapMargin, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk + ":");
+        else m_ChkMarginLessPerSnap.Text("Free margin <= % of snapshot:");
+    }
 
     // Refresh "Free margin >= % of snapshot" fields.
-    RefreshConditions(sets.boolMarginGrPerSnap, sets.doubleMarginGrPerSnap, m_ChkMarginGrPerSnap, m_EdtMarginGrPerSnap);
-    if (sets.SnapMarginTime != "") m_ChkMarginGrPerSnap.Text("Free margin >= % of snapshot (" + DoubleToString(sets.SnapMargin, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk + ":");
-    else m_ChkMarginGrPerSnap.Text("Free margin >= % of snapshot:");
+    if (!DisableMarginPercGE)
+    {
+        RefreshConditions(sets.boolMarginGrPerSnap, sets.doubleMarginGrPerSnap, m_ChkMarginGrPerSnap, m_EdtMarginGrPerSnap);
+        if (sets.SnapMarginTime != "") m_ChkMarginGrPerSnap.Text("Free margin >= % of snapshot (" + DoubleToString(sets.SnapMargin, AccountCurrencyDigits) + ")" + AdditionalFunds_Asterisk + ":");
+        else m_ChkMarginGrPerSnap.Text("Free margin >= % of snapshot:");
+    }
 
     // Refresh "Current price greater or equal" fields.
     if (!DisableCurrentPriceGE) RefreshConditions(sets.boolPriceGE, sets.doublePriceGE, m_ChkPriceGE, m_EdtPriceGE, _Digits);
@@ -1395,10 +1705,17 @@ void CAccountProtector::RefreshPanelControls()
     if (!DisableDailyProfitLossPointsLE) RefreshConditions(sets.boolDailyProfitLossPointsLE, sets.intDailyProfitLossPointsLE, m_ChkDailyProfitLossPointsLE, m_EdtDailyProfitLossPointsLE, 0);
 
     // Refresh "Daily profit/loss greater or equal percentage" fields.
-    if (!DisableDailyProfitLossPercGE) RefreshConditions(sets.boolDailyProfitLossPercGE, sets.doubleDailyProfitLossPercGE, m_ChkDailyProfitLossPercGE, m_EdtDailyProfitLossPercGE, 2);
-
+    if (!DisableDailyProfitLossPercGE)
+    {
+        RefreshConditions(sets.boolDailyProfitLossPercGE, sets.doubleDailyProfitLossPercGE, m_ChkDailyProfitLossPercGE, m_EdtDailyProfitLossPercGE, 2);
+        m_ChkDailyProfitLossPercGE.Text("Daily profit/loss >= % of balance (" + DoubleToString(DailyStartingBalance, AccountCurrencyDigits) + "):");
+    }
     // Refresh "Daily profit/loss less or equal percentage" fields.
-    if (!DisableDailyProfitLossPercLE) RefreshConditions(sets.boolDailyProfitLossPercLE, sets.doubleDailyProfitLossPercLE, m_ChkDailyProfitLossPercLE, m_EdtDailyProfitLossPercLE, 2);
+    if (!DisableDailyProfitLossPercLE)
+    {
+        RefreshConditions(sets.boolDailyProfitLossPercLE, sets.doubleDailyProfitLossPercLE, m_ChkDailyProfitLossPercLE, m_EdtDailyProfitLossPercLE, 2);
+        m_ChkDailyProfitLossPercLE.Text("Daily profit/loss <= % of balance (" + DoubleToString(DailyStartingBalance, AccountCurrencyDigits) + "):");
+    }
 
     // Refresh "Number of positions >= " fields.
     if (!DisableNumberOfPositionsGE) RefreshConditions(sets.boolNumberOfPositionsGE, sets.intNumberOfPositionsGE, m_ChkNumberOfPositionsGE, m_EdtNumberOfPositionsGE, 0);
@@ -1412,12 +1729,24 @@ void CAccountProtector::RefreshPanelControls()
     // Refresh "Number of pending orders <= " fields.
     if (!DisableNumberOfOrdersLE) RefreshConditions(sets.boolNumberOfOrdersLE, sets.intNumberOfOrdersLE, m_ChkNumberOfOrdersLE, m_EdtNumberOfOrdersLE, 0);
 
+    // Refresh "Balance >= " fields.
+    if (!DisableBalanceGE) RefreshConditions(sets.boolBalanceGE, sets.doubleBalanceGE, m_ChkBalanceGE, m_EdtBalanceGE, AccountCurrencyDigits);
+
+    // Refresh "Balance <= " fields.
+    if (!DisableBalanceLE) RefreshConditions(sets.boolBalanceLE, sets.doubleBalanceLE, m_ChkBalanceLE, m_EdtBalanceLE, AccountCurrencyDigits);
+
+    // Refresh "Listen to signal on channel" fields.
+    if (!DisableListenToSignal) RefreshConditions(sets.boolListenToSignal, sets.intListenToSignal, m_ChkListenToSignal, m_EdtListenToSignal, 0);
+
+    ResetAllTickedConditions = false; // The end of conditions resetting.
+
     // Actions tab
 
     // Refresh "Close all positions" checkbox.
     m_ChkClosePos.Checked(sets.ClosePos);
-    // Refresh "Close Percentage" field. Not a condition, but works with the same funciton.
+    // Refresh "Close Percentage" field. Not a condition, but works with the same function.
     RefreshConditions(sets.ClosePos, sets.doubleClosePercentage, m_ChkClosePos, m_EdtClosePercentage, 2);
+    if (sets.ClosePos) TotalConditionsNumber--; // Because the call above needlessly increased the counter.
     // Refresh button status (All, Losing, or Profitable).
     m_BtnPositionStatus.Text(EnumToString(sets.CloseWhichPositions));
 
@@ -1445,14 +1774,16 @@ void CAccountProtector::RefreshPanelControls()
     // Refresh "Close all other charts" checkbox.
     m_ChkCloseAllOtherCharts.Checked(sets.CloseAllOtherCharts);
 
+    // Refresh "Emit signal" checkbox.
+    m_ChkEmitSignal.Checked(sets.EmitSignal);
+    // Refresh "Signal Channel" field. Not a condition, but works with the same function.
+    RefreshConditions(sets.EmitSignal, sets.SignalChannel, m_ChkEmitSignal, m_EdtSignalChannel, 0);
+    if (sets.EmitSignal) TotalConditionsNumber--; // Because the call above needlessly increased the counter.
+
     // Refresh status label.
     if (sets.Triggered) m_LblStatus.Text("Status: Triggered at " + sets.TriggeredTime);
 }
 
-
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
 void CAccountProtector::HideControl(CWnd& obj)
 {
     if (obj.Left() > 0)
@@ -1462,9 +1793,6 @@ void CAccountProtector::HideControl(CWnd& obj)
     }
 }
 
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
 void CAccountProtector::ShowControl(CWnd& obj)
 {
     if (obj.Left() < 0)
@@ -1621,6 +1949,9 @@ void CAccountProtector::HideConditions()
     HideControl(m_ChkNumberOfOrdersLE);
     HideControl(m_ChkSpreadGE);
     HideControl(m_ChkSpreadLE);
+    HideControl(m_ChkBalanceGE);
+    HideControl(m_ChkBalanceLE);
+    HideControl(m_ChkListenToSignal);
     HideControl(m_EdtLossPerBalance);
     HideControl(m_EdtLossPerBalanceReverse);
     HideControl(m_EdtLossQuanUnits);
@@ -1659,6 +1990,9 @@ void CAccountProtector::HideConditions()
     HideControl(m_EdtNumberOfOrdersLE);
     HideControl(m_EdtSpreadGE);
     HideControl(m_EdtSpreadLE);
+    HideControl(m_EdtBalanceGE);
+    HideControl(m_EdtBalanceLE);
+    HideControl(m_EdtListenToSignal);
 }
 
 // Shows design-elements of TabButton "Conditions".
@@ -1703,6 +2037,9 @@ void CAccountProtector::ShowConditions()
     ShowControl(m_ChkNumberOfOrdersGE);
     ShowControl(m_ChkNumberOfPositionsLE);
     ShowControl(m_ChkNumberOfOrdersLE);
+    ShowControl(m_ChkBalanceGE);
+    ShowControl(m_ChkBalanceLE);
+    ShowControl(m_ChkListenToSignal);
     ShowControl(m_EdtLossPerBalance);
     ShowControl(m_EdtLossPerBalanceReverse);
     ShowControl(m_EdtLossQuanUnits);
@@ -1741,6 +2078,9 @@ void CAccountProtector::ShowConditions()
     ShowControl(m_EdtNumberOfOrdersGE);
     ShowControl(m_EdtNumberOfPositionsLE);
     ShowControl(m_EdtNumberOfOrdersLE);
+    ShowControl(m_EdtBalanceGE);
+    ShowControl(m_EdtBalanceLE);
+    ShowControl(m_EdtListenToSignal);
 }
 
 // Hides design-elements of TabButton "Actions".
@@ -1760,6 +2100,8 @@ void CAccountProtector::HideActions()
     HideControl(m_ChkEnableAuto);
     HideControl(m_ChkRecaptureSnapshots);
     HideControl(m_ChkCloseAllOtherCharts);
+    HideControl(m_ChkEmitSignal);
+    HideControl(m_EdtSignalChannel);
 }
 
 // Shows design-elements of TabButton "Actions".
@@ -1779,11 +2121,10 @@ void CAccountProtector::ShowActions()
     ShowControl(m_ChkEnableAuto);
     ShowControl(m_ChkRecaptureSnapshots);
     ShowControl(m_ChkCloseAllOtherCharts);
+    ShowControl(m_ChkEmitSignal);
+    ShowControl(m_EdtSignalChannel);
 }
 
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
 void CAccountProtector::SeekAndDestroyDuplicatePanels()
 {
     int ot = ObjectsTotal(ChartID());
@@ -2465,6 +2806,24 @@ void CAccountProtector::OnChangeChkDailyProfitLossPercLE()
     CheckboxChangeConditions(sets.boolDailyProfitLossPercLE, m_ChkDailyProfitLossPercLE);
 }
 
+// Changes Checkbox of Condition "Balance >= ".
+void CAccountProtector::OnChangeChkBalanceGE()
+{
+    CheckboxChangeConditions(sets.boolBalanceGE, m_ChkBalanceGE);
+}
+
+// Changes Checkbox of Condition "Balance <= ".
+void CAccountProtector::OnChangeChkBalanceLE()
+{
+    CheckboxChangeConditions(sets.boolBalanceLE, m_ChkBalanceLE);
+}
+
+// Changes Checkbox of Condition "Listen to signal on channel".
+void CAccountProtector::OnChangeChkListenToSignal()
+{
+    CheckboxChangeConditions(sets.boolListenToSignal, m_ChkListenToSignal);
+}
+
 // Supplementary function to process checkbox clicks (for Actions tab).
 void CAccountProtector::CheckboxChangeActions(bool& SettingsCheckboxValue, CCheckBox& CheckBox)
 {
@@ -2540,6 +2899,13 @@ void CAccountProtector::OnChangeChkRecaptureSnapshots()
 void CAccountProtector::OnChangeChkCloseAllOtherCharts()
 {
     CheckboxChangeActions(sets.CloseAllOtherCharts, m_ChkCloseAllOtherCharts);
+}
+
+// Changes Checkbox of Action "Emit signal on channel".
+void CAccountProtector::OnChangeChkEmitSignal()
+{
+    // Acts like a condition checkbox for signal channel edit.
+    CheckboxChangeConditions(sets.EmitSignal, m_ChkEmitSignal);
 }
 
 // Supplementary function to process changes to edit fields in the Conditions tab:
@@ -2799,7 +3165,25 @@ void CAccountProtector::OnEndEditNumberOfOrdersLE()
     EditChangeConditions(sets.intNumberOfOrdersLE, m_EdtNumberOfOrdersLE, "Number of pending orders <= ");
 }
 
-// Processes edit of input-field for percentage of volume to be close in Action "Close Positions".
+// Processes edit of input-field of Condition "Balance >= ".
+void CAccountProtector::OnEndEditBalanceGE()
+{
+    EditChangeConditions(sets.doubleBalanceGE, m_EdtBalanceGE, "Balance >= currency units");
+}
+
+// Processes edit of input-field of Condition "Balance <= ".
+void CAccountProtector::OnEndEditBalanceLE()
+{
+    EditChangeConditions(sets.doubleBalanceLE, m_EdtBalanceLE, "Balance <= currency units");
+}
+
+// Processes edit of input-field of Condition "Listen to signal on channel".
+void CAccountProtector::OnEndEditListenToSignal()
+{
+    EditChangeConditions(sets.intListenToSignal, m_EdtListenToSignal, "Signal from another AP on channel ");
+}
+
+// Processes edit of input-field for percentage of volume to be closed in Action "Close Positions".
 void CAccountProtector::OnEndEditClosePercentage()
 {
     double ValueFromEdit = StringToDouble(m_EdtClosePercentage.Text());
@@ -2827,6 +3211,23 @@ void CAccountProtector::OnEndEditClosePercentage()
             sets.Triggered = false;
             sets.TriggeredTime = "";
         }
+        SaveSettingsOnDisk();
+    }
+}
+
+// Processes edit of input-field for channel to emit a signal on in Action "Emit signal".
+void CAccountProtector::OnEndEditSignalChannel()
+{
+    int ValueFromEdit = (int)StringToInteger(m_EdtSignalChannel.Text());
+
+    if (!IsInteger(m_EdtSignalChannel.Text()))
+    {
+        Logging("Value is wrong: Signal channel.");
+        LoadSettingsFromDisk();
+    }
+    else if (sets.SignalChannel != ValueFromEdit)
+    {
+        sets.SignalChannel = ValueFromEdit;
         SaveSettingsOnDisk();
     }
 }
@@ -2920,13 +3321,31 @@ void CAccountProtector::OnClickBtnEmergency()
     if (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED))
     {
         Logging_Condition_Is_Met();
+        if (CloseOtherChartsOnEmergencyButton)
+        {
+            CloseAllOtherCharts(); // Close all other charts.
+        }
+        // Need to temporarily change the settings to close ALL positions.
+        Position_Status tmp_CloseWhichPositions = sets.CloseWhichPositions;
+        double tmp_doubleClosePercentage = sets.doubleClosePercentage;
+        sets.CloseWhichPositions = All;
+        sets.doubleClosePercentage = 100;
         Close_All_Positions();
         Delete_All_Pending_Orders();
-        // Toggle AutoTrading button.
-        PostMessageA(GetAncestor((int)ChartGetInteger(0, CHART_WINDOW_HANDLE), 2/*GA_ROOT*/), WM_COMMAND, 32851, 0);
+        if (!CloseOtherChartsOnEmergencyButton) // No need to disable autotrading if we closed all other charts. No EAs left to open new orders.
+        {
+            PostMessageA(GetAncestor((int)ChartGetInteger(0, CHART_WINDOW_HANDLE), 2/*GA_ROOT*/), WM_COMMAND, 32851, 0); // Toggle AutoTrading button.
+        }
+        // Recall previous values.
+        sets.CloseWhichPositions = tmp_CloseWhichPositions;
+        sets.doubleClosePercentage = tmp_doubleClosePercentage;
         sets.Triggered = false;
         sets.TriggeredTime = "";
         Logging("All positions closed, pending orders deleted, autotrading disabled.");
+    }
+    else
+    {
+        Logging("Trading not allowed.");
     }
 }
 
@@ -3149,6 +3568,12 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, IntegerToString(sets.boolNumberOfPositionsLE));
     FileWrite(fh, "boolNumberOfOrdersLE");
     FileWrite(fh, IntegerToString(sets.boolNumberOfOrdersLE));
+    FileWrite(fh, "boolBalanceGE");
+    FileWrite(fh, IntegerToString(sets.boolBalanceGE));
+    FileWrite(fh, "boolBalanceLE");
+    FileWrite(fh, IntegerToString(sets.boolBalanceLE));
+    FileWrite(fh, "boolListenToSignal");
+    FileWrite(fh, IntegerToString(sets.boolListenToSignal));
     FileWrite(fh, "doubleLossPerBalance");
     FileWrite(fh, DoubleToString(sets.doubleLossPerBalance));
     FileWrite(fh, "doubleLossPerBalanceReverse");
@@ -3225,6 +3650,12 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, IntegerToString(sets.intNumberOfPositionsLE));
     FileWrite(fh, "intNumberOfOrdersLE");
     FileWrite(fh, IntegerToString(sets.intNumberOfOrdersLE));
+    FileWrite(fh, "doubleBalanceGE");
+    FileWrite(fh, DoubleToString(sets.doubleBalanceGE));
+    FileWrite(fh, "doubleBalanceLE");
+    FileWrite(fh, DoubleToString(sets.doubleBalanceLE));
+    FileWrite(fh, "intListenToSignal");
+    FileWrite(fh, IntegerToString(sets.intListenToSignal));
     FileWrite(fh, "ClosePos");
     FileWrite(fh, IntegerToString(sets.ClosePos));
     FileWrite(fh, "doubleClosePercentage");
@@ -3247,6 +3678,10 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, IntegerToString(sets.RecaptureSnapshots));
     FileWrite(fh, "CloseAllOtherCharts");
     FileWrite(fh, IntegerToString(sets.CloseAllOtherCharts));
+    FileWrite(fh, "EmitSignal");
+    FileWrite(fh, IntegerToString(sets.EmitSignal));
+    FileWrite(fh, "SignalChannel");
+    FileWrite(fh, IntegerToString(sets.SignalChannel));
     FileWrite(fh, "SelectedTab");
     FileWrite(fh, IntegerToString(sets.SelectedTab));
     FileWrite(fh, "Triggered");
@@ -3275,14 +3710,22 @@ bool CAccountProtector::SaveSettingsOnDisk()
 }
 
 // Supplementary function to load changes to relevant fields in tabs:
+// 0. Reset values if required by the WaitForAllConditions.
 // 1. Check checkbox setting.
-// 2. Set checkbox mark, read only state, and background color.
+// 2. Set checkbox mark.
 // 3. Fill edit field.
-void CAccountProtector::RefreshConditions(const bool SettingsCheckBoxValue, const double SettingsEditValue, CCheckBox& CheckBox, CEdit& Edit, const int decimal_places = 2)
+template<typename T>
+void CAccountProtector::RefreshConditions(bool& SettingsCheckBoxValue, T& SettingsEditValue, CCheckBox& CheckBox, CEdit& Edit, const int decimal_places = 2)
 {
+    if (ResetAllTickedConditions) // Reset is required for all conditions.
+    {
+        SettingsCheckBoxValue = false;
+        SettingsEditValue = 0;
+    }
     if (SettingsCheckBoxValue)
     {
         CheckBox.Checked(true);
+        TotalConditionsNumber++;
     }
     else
     {
@@ -3431,13 +3874,25 @@ bool CAccountProtector::LoadSettingsFromDisk()
             else sets.boolProfPointsReverse = false;
         }
         else if (var_name == "boolEquityLessUnits")
-            sets.boolEquityLessUnits = (bool)StringToInteger(var_content);
+        {
+            if (!DisableEquityUnitsLE) sets.boolEquityLessUnits = (bool)StringToInteger(var_content);
+            else sets.boolEquityLessUnits = false;
+        }
         else if (var_name == "boolEquityGrUnits")
-            sets.boolEquityGrUnits = (bool)StringToInteger(var_content);
+        {
+            if (!DisableEquityUnitsGE) sets.boolEquityGrUnits = (bool)StringToInteger(var_content);
+            else sets.boolEquityGrUnits = false;
+        }
         else if (var_name == "boolEquityLessPerSnap")
-            sets.boolEquityLessPerSnap = (bool)StringToInteger(var_content);
+        {
+            if (!DisableEquityPercLE) sets.boolEquityLessPerSnap = (bool)StringToInteger(var_content);
+            else sets.boolEquityLessPerSnap = false;
+        }
         else if (var_name == "boolEquityGrPerSnap")
-            sets.boolEquityGrPerSnap = (bool)StringToInteger(var_content);
+        {
+            if (!DisableEquityPercGE) sets.boolEquityGrPerSnap = (bool)StringToInteger(var_content);
+            else sets.boolEquityGrPerSnap = false;
+        }
         else if (var_name == "boolEquityMinusSnapshot")
         {
             if (!DisableEquityMinusSnapshot) sets.boolEquityMinusSnapshot = (bool)StringToInteger(var_content);
@@ -3449,13 +3904,25 @@ bool CAccountProtector::LoadSettingsFromDisk()
             else sets.boolSnapshotMinusEquity = false;
         }
         else if (var_name == "boolMarginLessUnits")
-            sets.boolMarginLessUnits = (bool)StringToInteger(var_content);
+        {
+            if (!DisableMarginUnitsLE) sets.boolMarginLessUnits = (bool)StringToInteger(var_content);
+            else sets.boolMarginLessUnits = false;
+        }
         else if (var_name == "boolMarginGrUnits")
-            sets.boolMarginGrUnits = (bool)StringToInteger(var_content);
+        {
+            if (!DisableMarginUnitsGE) sets.boolMarginGrUnits = (bool)StringToInteger(var_content);
+            else sets.boolMarginGrUnits = false;
+        }
         else if (var_name == "boolMarginLessPerSnap")
-            sets.boolMarginLessPerSnap = (bool)StringToInteger(var_content);
+        {
+            if (!DisableMarginPercLE) sets.boolMarginLessPerSnap = (bool)StringToInteger(var_content);
+            else sets.boolMarginLessPerSnap = false;
+        }
         else if (var_name == "boolMarginGrPerSnap")
-            sets.boolMarginGrPerSnap = (bool)StringToInteger(var_content);
+        {
+            if (!DisableMarginPercGE) sets.boolMarginGrPerSnap = (bool)StringToInteger(var_content);
+            else sets.boolMarginGrPerSnap = false;
+        }
         else if (var_name == "boolPriceGE")
         {
             if (!DisableCurrentPriceGE) sets.boolPriceGE = (bool)StringToInteger(var_content);
@@ -3536,6 +4003,21 @@ bool CAccountProtector::LoadSettingsFromDisk()
             if (!DisableNumberOfOrdersLE) sets.boolNumberOfOrdersLE = (bool)StringToInteger(var_content);
             else sets.boolNumberOfOrdersLE = false;
         }
+        else if (var_name == "boolBalanceGE")
+        {
+            if (!DisableBalanceGE) sets.boolBalanceGE = (bool)StringToInteger(var_content);
+            else sets.boolBalanceGE = false;
+        }
+        else if (var_name == "boolBalanceLE")
+        {
+            if (!DisableBalanceLE) sets.boolBalanceLE = (bool)StringToInteger(var_content);
+            else sets.boolBalanceLE = false;
+        }
+        else if (var_name == "boolListenToSignal")
+        {
+            if (!DisableListenToSignal) sets.boolListenToSignal = (bool)StringToInteger(var_content);
+            else sets.boolListenToSignal = false;
+        }
         else if (var_name == "doubleLossPerBalance")
         {
             if (!DisableFloatLossRisePerc) sets.doubleLossPerBalance = StringToDouble(var_content);
@@ -3597,13 +4079,25 @@ bool CAccountProtector::LoadSettingsFromDisk()
             else sets.intProfPointsReverse = 0;
         }
         else if (var_name == "doubleEquityLessUnits")
-            sets.doubleEquityLessUnits = StringToDouble(var_content);
+        {
+            if (!DisableEquityUnitsLE) sets.doubleEquityLessUnits = StringToDouble(var_content);
+            else sets.doubleEquityLessUnits = 0;
+        }
         else if (var_name == "doubleEquityGrUnits")
-            sets.doubleEquityGrUnits = StringToDouble(var_content);
+        {
+            if (!DisableEquityUnitsGE) sets.doubleEquityGrUnits = StringToDouble(var_content);
+            else sets.doubleEquityGrUnits = 0;
+        }
         else if (var_name == "doubleEquityLessPerSnap")
-            sets.doubleEquityLessPerSnap = StringToDouble(var_content);
+        {
+            if (!DisableEquityPercLE) sets.doubleEquityLessPerSnap = StringToDouble(var_content);
+            else sets.doubleEquityLessPerSnap = 0;
+        }
         else if (var_name == "doubleEquityGrPerSnap")
-            sets.doubleEquityGrPerSnap = StringToDouble(var_content);
+        {
+            if (!DisableEquityPercGE) sets.doubleEquityGrPerSnap = StringToDouble(var_content);
+            else sets.doubleEquityGrPerSnap = 0;
+        }
         else if (var_name == "doubleEquityMinusSnapshot")
         {
             if (!DisableEquityMinusSnapshot) sets.doubleEquityMinusSnapshot = StringToDouble(var_content);
@@ -3615,13 +4109,25 @@ bool CAccountProtector::LoadSettingsFromDisk()
             else sets.doubleSnapshotMinusEquity = 0;
         }
         else if (var_name == "doubleMarginLessUnits")
-            sets.doubleMarginLessUnits = StringToDouble(var_content);
+        {
+            if (!DisableMarginUnitsLE) sets.doubleMarginLessUnits = StringToDouble(var_content);
+            else sets.doubleMarginLessUnits = 0;
+        }
         else if (var_name == "doubleMarginGrUnits")
-            sets.doubleMarginGrUnits = StringToDouble(var_content);
+        {
+            if (!DisableMarginUnitsGE) sets.doubleMarginGrUnits = StringToDouble(var_content);
+            sets.doubleMarginGrUnits = 0;
+        }
         else if (var_name == "doubleMarginLessPerSnap")
-            sets.doubleMarginLessPerSnap = StringToDouble(var_content);
+        {
+            if (!DisableMarginPercLE) sets.doubleMarginLessPerSnap = StringToDouble(var_content);
+            else sets.doubleMarginLessPerSnap = 0;
+        }
         else if (var_name == "doubleMarginGrPerSnap")
-            sets.doubleMarginGrPerSnap = StringToDouble(var_content);
+        {
+            if (!DisableMarginPercGE) sets.doubleMarginGrPerSnap = StringToDouble(var_content);
+            else sets.doubleMarginGrPerSnap = 0;
+        }
         else if (var_name == "doublePriceGE")
         {
             if (!DisableCurrentPriceGE) sets.doublePriceGE = StringToDouble(var_content);
@@ -3702,6 +4208,21 @@ bool CAccountProtector::LoadSettingsFromDisk()
             if (!DisableNumberOfOrdersLE) sets.intNumberOfOrdersLE = (int)StringToInteger(var_content);
             else sets.intNumberOfOrdersLE = 0;
         }
+        else if (var_name == "doubleBalanceGE")
+        {
+            if (!DisableBalanceGE) sets.doubleBalanceGE = StringToDouble(var_content);
+            else sets.doubleBalanceGE = 0;
+        }
+        else if (var_name == "doubleBalanceLE")
+        {
+            if (!DisableBalanceLE) sets.doubleBalanceLE = StringToDouble(var_content);
+            else sets.doubleBalanceLE = 0;
+        }
+        else if (var_name == "intListenToSignal")
+        {
+            if (!DisableListenToSignal) sets.intListenToSignal = (int)StringToInteger(var_content);
+            else sets.intListenToSignal = 0;
+        }
         else if (var_name == "ClosePos")
             sets.ClosePos = (bool)StringToInteger(var_content);
         else if (var_name == "doubleClosePercentage")
@@ -3724,6 +4245,10 @@ bool CAccountProtector::LoadSettingsFromDisk()
             sets.RecaptureSnapshots = (bool)StringToInteger(var_content);
         else if (var_name == "CloseAllOtherCharts")
             sets.CloseAllOtherCharts = (bool)StringToInteger(var_content);
+        else if (var_name == "EmitSignal")
+            sets.EmitSignal = (bool)StringToInteger(var_content);
+        else if (var_name == "SignalChannel")
+            sets.SignalChannel = (int)StringToInteger(var_content);
         else if (var_name == "SelectedTab")
             sets.SelectedTab = (TABS)StringToInteger(var_content);
         else if (var_name == "Triggered")
@@ -3849,7 +4374,9 @@ bool CAccountProtector::No_Condition()
         (!sets.boolMarginLevelGE) && (!sets.boolMarginLevelLE) &&
         (!sets.boolSpreadGE) && (!sets.boolSpreadLE) &&
         (!sets.boolDailyProfitLossUnitsGE) && (!sets.boolDailyProfitLossUnitsLE) && (!sets.boolDailyProfitLossPointsGE) && (!sets.boolDailyProfitLossPointsLE) && (!sets.boolDailyProfitLossPercGE) && (!sets.boolDailyProfitLossPercLE) &&
-        (!sets.boolNumberOfPositionsGE) && (!sets.boolNumberOfOrdersGE) && (!sets.boolNumberOfPositionsLE) && (!sets.boolNumberOfOrdersLE)
+        (!sets.boolNumberOfPositionsGE) && (!sets.boolNumberOfOrdersGE) && (!sets.boolNumberOfPositionsLE) && (!sets.boolNumberOfOrdersLE) &&
+        (!sets.boolBalanceGE) && (!sets.boolBalanceLE) &&
+        (!sets.boolListenToSignal)
        ) return true;
 
     return false;
@@ -3866,7 +4393,8 @@ bool CAccountProtector::No_Action()
         (!sets.ClosePlatform) && 
         (!sets.EnableAuto) && 
         (!sets.RecaptureSnapshots) &&
-        (!sets.CloseAllOtherCharts)) return true;
+        (!sets.CloseAllOtherCharts) &&
+        (!sets.EmitSignal)) return true;
 
     return false;
 }
@@ -4128,27 +4656,15 @@ void CAccountProtector::Close_All_Positions()
             // Skip losing positions if only profitable ones should be closed.
             if ((sets.CloseWhichPositions == Profitable) && (PositionGetDouble(POSITION_PROFIT) < 0)) continue;
             double position_volume = PositionGetDouble(POSITION_VOLUME);
-            if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+            string position_type = "Buy";
+            if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL) position_type = "Sell";
+            error = Close_Current_Position(ticket);
+            if (error != 0) Logging("Account Protector: PositionClose " + position_type + " failed. Error #" + IntegerToString(error));
+            else
             {
-                error = Close_Current_Position(ticket);
-                if (error != 0) Logging("Account Protector: PositionClose Buy failed. Error #" + IntegerToString(error));
-                else
-                {
-                    QuantityClosedPositions++;
-                    ClosedVolume += position_volume;
-                    PositionsByProfit[i][1] = 0; // Zero the ticket number to "forget" this positions.
-                }
-            }
-            else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
-            {
-                error = Close_Current_Position(ticket);
-                if (error != 0) Logging("Account Protector: PositionClose Sell failed. Error #" + IntegerToString(error));
-                else
-                {
-                    QuantityClosedPositions++;
-                    ClosedVolume += position_volume;
-                    PositionsByProfit[i][1] = 0; // Zero the ticket number to "forget" this positions.
-                }
+                QuantityClosedPositions++;
+                ClosedVolume += position_volume;
+                PositionsByProfit[i][1] = 0; // Zero the ticket number to "forget" this positions.
             }
         }
         // Using total volume closure with close percentage given.
@@ -4202,7 +4718,7 @@ int CAccountProtector::Close_Current_Position(ulong ticket)
     // Partial close already performed for this order.
     if (sets.doubleClosePercentage < 100) // Skip this part if closing whole positions.
     {
-        if (PartiallyClosedOrders.Search(ticket) != -1) return(0);
+        if (PartiallyClosedOrders.Search(ticket) != -1) return 0;
     }
     MqlTradeRequest request;
     MqlTradeResult  result;
@@ -4241,10 +4757,29 @@ int CAccountProtector::Close_Current_Position(ulong ticket)
         request.type    = ORDER_TYPE_BUY;
     }
 
-    if (!OrderSend(request, result))
+    string action_partial = "was partially closed";
+    string action = "was closed at";
+    if (AsyncMode)
     {
-        IsANeedToContinueClosingPositions = true;
-        return(GetLastError());
+        if (!OrderSendAsync(request, result))
+        {
+            IsANeedToContinueClosingPositions = true;
+            return GetLastError();
+        }
+        action_partial = "was queued for partial closure";
+        action = "was queued for closure";
+    }
+    else
+    {
+        if (!OrderSend(request, result))
+        {
+            IsANeedToContinueClosingPositions = true;
+            return GetLastError();
+        }
+        if ((result.retcode != 10009) && (result.retcode != 10008)) // Unexpected return code.
+        {
+            Logging("Order request return code: " + IntegerToString(result.retcode) + ".");
+        }
     }
 
     int decimal_places = CountDecimalPlaces(PositionGetDouble(POSITION_VOLUME));
@@ -4252,9 +4787,9 @@ int CAccountProtector::Close_Current_Position(ulong ticket)
     if (calculated_order_lots != volume)
     {
         if (type == POSITION_TYPE_BUY)
-            Logging("Account Protector: " + PositionGetString(POSITION_SYMBOL) + " Buy position #" + IntegerToString(ticket) + "; Lotsize = " + DoubleToString(PositionGetDouble(POSITION_VOLUME), decimal_places) + ", OpenPrice = " + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", SL = " + DoubleToString(PositionGetDouble(POSITION_SL), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", TP = " + DoubleToString(PositionGetDouble(POSITION_TP), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + " was partially closed (" + DoubleToString(sets.doubleClosePercentage) + "%) at " + DoubleToString(SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ".");
+            Logging("Account Protector: " + PositionGetString(POSITION_SYMBOL) + " Buy position #" + IntegerToString(ticket) + "; Lotsize = " + DoubleToString(PositionGetDouble(POSITION_VOLUME), decimal_places) + ", OpenPrice = " + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", SL = " + DoubleToString(PositionGetDouble(POSITION_SL), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", TP = " + DoubleToString(PositionGetDouble(POSITION_TP), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + " " + action_partial + " (" + DoubleToString(sets.doubleClosePercentage) + "%) at " + DoubleToString(SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ".");
         else if (type == POSITION_TYPE_SELL)
-            Logging("Account Protector: " + PositionGetString(POSITION_SYMBOL) + " Sell position #" + IntegerToString(ticket) + "; Lotsize = " + DoubleToString(PositionGetDouble(POSITION_VOLUME), decimal_places) + ", OpenPrice = " + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", SL = " + DoubleToString(PositionGetDouble(POSITION_SL), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", TP = " + DoubleToString(PositionGetDouble(POSITION_TP), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + " was partially closed (" + DoubleToString(sets.doubleClosePercentage) + "%) at " + DoubleToString(SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ".");
+            Logging("Account Protector: " + PositionGetString(POSITION_SYMBOL) + " Sell position #" + IntegerToString(ticket) + "; Lotsize = " + DoubleToString(PositionGetDouble(POSITION_VOLUME), decimal_places) + ", OpenPrice = " + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", SL = " + DoubleToString(PositionGetDouble(POSITION_SL), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", TP = " + DoubleToString(PositionGetDouble(POSITION_TP), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + " " + action_partial + " (" + DoubleToString(sets.doubleClosePercentage) + "%) at " + DoubleToString(SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ".");
 
         PartiallyClosedOrders.Add(ticket);
         PartiallyClosedOrders.Sort();
@@ -4262,12 +4797,12 @@ int CAccountProtector::Close_Current_Position(ulong ticket)
     else
     {
         if (type == POSITION_TYPE_BUY)
-            Logging("Account Protector: " + PositionGetString(POSITION_SYMBOL) + " Buy position #" + IntegerToString(ticket) + "; Lotsize = " + DoubleToString(PositionGetDouble(POSITION_VOLUME), decimal_places) + ", OpenPrice = " + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", SL = " + DoubleToString(PositionGetDouble(POSITION_SL), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", TP = " + DoubleToString(PositionGetDouble(POSITION_TP), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + " was closed at " + DoubleToString(SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ".");
+            Logging("Account Protector: " + PositionGetString(POSITION_SYMBOL) + " Buy position #" + IntegerToString(ticket) + "; Lotsize = " + DoubleToString(PositionGetDouble(POSITION_VOLUME), decimal_places) + ", OpenPrice = " + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", SL = " + DoubleToString(PositionGetDouble(POSITION_SL), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", TP = " + DoubleToString(PositionGetDouble(POSITION_TP), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + " " + action + " " + DoubleToString(SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ".");
         else if (type == POSITION_TYPE_SELL)
-            Logging("Account Protector: " + PositionGetString(POSITION_SYMBOL) + " Sell position #" + IntegerToString(ticket) + "; Lotsize = " + DoubleToString(PositionGetDouble(POSITION_VOLUME), decimal_places) + ", OpenPrice = " + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", SL = " + DoubleToString(PositionGetDouble(POSITION_SL), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", TP = " + DoubleToString(PositionGetDouble(POSITION_TP), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + " was closed at " + DoubleToString(SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ".");
+            Logging("Account Protector: " + PositionGetString(POSITION_SYMBOL) + " Sell position #" + IntegerToString(ticket) + "; Lotsize = " + DoubleToString(PositionGetDouble(POSITION_VOLUME), decimal_places) + ", OpenPrice = " + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", SL = " + DoubleToString(PositionGetDouble(POSITION_SL), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ", TP = " + DoubleToString(PositionGetDouble(POSITION_TP), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + " " + action + " " + DoubleToString(SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK), (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS)) + ".");
     }
 
-    return(0);
+    return 0;
 }
 
 // Deletes all pending orders.
@@ -4571,6 +5106,10 @@ void CAccountProtector::EquityTrailing()
         {
             sets.doubleCurrentEquityStopLoss = 0;
         }
+        if (DisableAutoTradingOnTS)
+        {
+            if (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) PostMessageA(GetAncestor((int)ChartGetInteger(0, CHART_WINDOW_HANDLE), 2/*GA_ROOT*/), WM_COMMAND, 32851, 0);
+        }
 
         SaveSettingsOnDisk();
         MoveAndResize();
@@ -4625,82 +5164,88 @@ void CAccountProtector::Logging_Current_Settings()
     Logging("sets.Instruments = " + sets.Instruments);
     Logging("sets.boolIgnoreLossTrades = " + (string)sets.boolIgnoreLossTrades);
     Logging("sets.boolIgnoreProfitTrades = " + (string)sets.boolIgnoreProfitTrades);
-    Logging("sets.boolLossPerBalance = " + IntegerToString(sets.boolLossPerBalance));
-    Logging("sets.boolLossPerBalancReversee = " + IntegerToString(sets.boolLossPerBalanceReverse));
-    Logging("sets.boolLossQuanUnits = " + IntegerToString(sets.boolLossQuanUnits));
-    Logging("sets.boolLossQuanUnitsReverse = " + IntegerToString(sets.boolLossQuanUnitsReverse));
-    Logging("sets.boolLossPoints = " + IntegerToString(sets.boolLossPoints));
-    Logging("sets.boolLossPointsReverse = " + IntegerToString(sets.boolLossPointsReverse));
-    Logging("sets.boolProfPerBalance = " + IntegerToString(sets.boolProfPerBalance));
-    Logging("sets.boolProfPerBalanceReverse = " + IntegerToString(sets.boolProfPerBalanceReverse));
-    Logging("sets.boolProfQuanUnits = " + IntegerToString(sets.boolProfQuanUnits));
-    Logging("sets.boolProfQuanUnitsReverse = " + IntegerToString(sets.boolProfQuanUnitsReverse));
-    Logging("sets.boolProfPoints = " + IntegerToString(sets.boolProfPoints));
-    Logging("sets.boolProfPointsReverse = " + IntegerToString(sets.boolProfPointsReverse));
-    Logging("sets.boolEquityLessUnits = " + IntegerToString(sets.boolEquityLessUnits));
-    Logging("sets.boolEquityGrUnits = " + IntegerToString(sets.boolEquityGrUnits));
-    Logging("sets.boolEquityLessPerSnap = " + IntegerToString(sets.boolEquityLessPerSnap));
-    Logging("sets.boolEquityGrPerSnap = " + IntegerToString(sets.boolEquityGrPerSnap));
-    Logging("sets.boolEquityMinusSnapshot = " + IntegerToString(sets.boolEquityMinusSnapshot));
-    Logging("sets.boolSnapshotMinusEquity = " + IntegerToString(sets.boolSnapshotMinusEquity));
-    Logging("sets.boolMarginLessUnits = " + IntegerToString(sets.boolMarginLessUnits));
-    Logging("sets.boolMarginGrUnits = " + IntegerToString(sets.boolMarginGrUnits));
-    Logging("sets.boolMarginLessPerSnap = " + IntegerToString(sets.boolMarginLessPerSnap));
-    Logging("sets.boolMarginGrPerSnap = " + IntegerToString(sets.boolMarginGrPerSnap));
-    Logging("sets.boolPriceGE = " + IntegerToString(sets.boolPriceGE));
-    Logging("sets.boolPriceLE = " + IntegerToString(sets.boolPriceLE));
-    Logging("sets.boolMarginLevelGE = " + IntegerToString(sets.boolMarginLevelGE));
-    Logging("sets.boolMarginLevelLE = " + IntegerToString(sets.boolMarginLevelLE));
-    Logging("sets.boolSpreadGE = " + IntegerToString(sets.boolSpreadGE));
-    Logging("sets.boolSpreadLE = " + IntegerToString(sets.boolSpreadLE));
-    Logging("sets.boolDailyProfitLossUnitsGE = " + IntegerToString(sets.boolDailyProfitLossUnitsGE));
-    Logging("sets.boolDailyProfitLossUnitsLE = " + IntegerToString(sets.boolDailyProfitLossUnitsLE));
-    Logging("sets.boolDailyProfitLossPointsGE = " + IntegerToString(sets.boolDailyProfitLossPointsGE));
-    Logging("sets.boolDailyProfitLossPointsLE = " + IntegerToString(sets.boolDailyProfitLossPointsLE));
-    Logging("sets.boolDailyProfitLossPercGE = " + IntegerToString(sets.boolDailyProfitLossPercGE));
-    Logging("sets.boolDailyProfitLossPercLE = " + IntegerToString(sets.boolDailyProfitLossPercLE));
-    Logging("sets.boolNumberOfPositionsGE = " + IntegerToString(sets.boolNumberOfPositionsGE));
-    Logging("sets.boolNumberOfOrdersGE = " + IntegerToString(sets.boolNumberOfOrdersGE));
-    Logging("sets.boolNumberOfPositionsLE = " + IntegerToString(sets.boolNumberOfPositionsLE));
-    Logging("sets.boolNumberOfOrdersLE = " + IntegerToString(sets.boolNumberOfOrdersLE));
-    Logging("sets.doubleLossPerBalance = " + DoubleToString(sets.doubleLossPerBalance, 2));
-    Logging("sets.doubleLossPerBalanceReverse = " + DoubleToString(sets.doubleLossPerBalanceReverse, 2));
-    Logging("sets.doubleLossQuanUnits = " + DoubleToString(sets.doubleLossQuanUnits, AccountCurrencyDigits));
-    Logging("sets.doubleLossQuanUnitsReverse = " + DoubleToString(sets.doubleLossQuanUnitsReverse, AccountCurrencyDigits));
-    Logging("sets.intLossPoints = " + IntegerToString(sets.intLossPoints));
-    Logging("sets.intLossPointsReverse = " + IntegerToString(sets.intLossPointsReverse));
-    Logging("sets.doubleProfPerBalance = " + DoubleToString(sets.doubleProfPerBalance, 2));
-    Logging("sets.doubleProfPerBalanceReverse = " + DoubleToString(sets.doubleProfPerBalanceReverse, 2));
-    Logging("sets.doubleProfQuanUnits = " + DoubleToString(sets.doubleProfQuanUnits, AccountCurrencyDigits));
-    Logging("sets.doubleProfQuanUnitsReverse = " + DoubleToString(sets.doubleProfQuanUnitsReverse, AccountCurrencyDigits));
-    Logging("sets.intProfPoints = " + IntegerToString(sets.intProfPoints));
-    Logging("sets.intProfPointsReverse = " + IntegerToString(sets.intProfPointsReverse));
-    Logging("sets.doubleEquityLessUnits = " + DoubleToString(sets.doubleEquityLessUnits, AccountCurrencyDigits));
-    Logging("sets.doubleEquityGrUnits = " + DoubleToString(sets.doubleEquityGrUnits, AccountCurrencyDigits));
-    Logging("sets.doubleEquityLessPerSnap = " + DoubleToString(sets.doubleEquityLessPerSnap, 2));
-    Logging("sets.doubleEquityGrPerSnap = " + DoubleToString(sets.doubleEquityGrPerSnap, 2));
-    Logging("sets.doubleEquityMinusSnapshot = " + DoubleToString(sets.doubleEquityMinusSnapshot, AccountCurrencyDigits));
-    Logging("sets.doubleSnapshotMinusEquity = " + DoubleToString(sets.doubleSnapshotMinusEquity, AccountCurrencyDigits));
-    Logging("sets.doubleMarginLessUnits = " + DoubleToString(sets.doubleMarginLessUnits, AccountCurrencyDigits));
-    Logging("sets.doubleMarginGrUnits = " + DoubleToString(sets.doubleMarginGrUnits, AccountCurrencyDigits));
-    Logging("sets.doubleMarginLessPerSnap = " + DoubleToString(sets.doubleMarginLessPerSnap, 2));
-    Logging("sets.doubleMarginGrPerSnap = " + DoubleToString(sets.doubleMarginGrPerSnap, 2));
-    Logging("sets.doublePriceGE = " + DoubleToString(sets.doublePriceGE, _Digits));
-    Logging("sets.doublePriceLE = " + DoubleToString(sets.doublePriceLE, _Digits));
-    Logging("sets.doubleMarginLevelGE = " + DoubleToString(sets.doubleMarginLevelGE, 2) + "%");
-    Logging("sets.doubleMarginLevelLE = " + DoubleToString(sets.doubleMarginLevelLE, 2) + "%");
-    Logging("sets.intSpreadGE = " + IntegerToString(sets.intSpreadGE));
-    Logging("sets.intSpreadLE = " + IntegerToString(sets.intSpreadLE));
-    Logging("sets.doubleDailyProfitLossUnitsGE = " + DoubleToString(sets.doubleDailyProfitLossUnitsGE, 2));
-    Logging("sets.doubleDailyProfitLossUnitsLE = " + DoubleToString(sets.doubleDailyProfitLossUnitsLE, 2));
-    Logging("sets.intDailyProfitLossPointsGE = " + IntegerToString(sets.intDailyProfitLossPointsGE));
-    Logging("sets.intDailyProfitLossPointsLE = " + IntegerToString(sets.intDailyProfitLossPointsLE));
-    Logging("sets.doubleDailyProfitLossPercGE = " + DoubleToString(sets.doubleDailyProfitLossPercGE, 2));
-    Logging("sets.doubleDailyProfitLossPercLE = " + DoubleToString(sets.doubleDailyProfitLossPercLE, 2));
-    Logging("sets.intNumberOfPositionsGE = " + IntegerToString(sets.intNumberOfPositionsGE));
-    Logging("sets.intNumberOfOrdersGE = " + IntegerToString(sets.intNumberOfOrdersGE));
-    Logging("sets.intNumberOfPositionsLE = " + IntegerToString(sets.intNumberOfPositionsLE));
-    Logging("sets.intNumberOfOrdersLE = " + IntegerToString(sets.intNumberOfOrdersLE));
+    if (!DisableFloatLossRisePerc) Logging("sets.boolLossPerBalance = " + IntegerToString(sets.boolLossPerBalance));
+    if (!DisableFloatLossFallPerc) Logging("sets.boolLossPerBalancReversee = " + IntegerToString(sets.boolLossPerBalanceReverse));
+    if (!DisableFloatLossRiseCurr) Logging("sets.boolLossQuanUnits = " + IntegerToString(sets.boolLossQuanUnits));
+    if (!DisableFloatLossFallCurr) Logging("sets.boolLossQuanUnitsReverse = " + IntegerToString(sets.boolLossQuanUnitsReverse));
+    if (!DisableFloatLossRisePoints) Logging("sets.boolLossPoints = " + IntegerToString(sets.boolLossPoints));
+    if (!DisableFloatLossFallPoints) Logging("sets.boolLossPointsReverse = " + IntegerToString(sets.boolLossPointsReverse));
+    if (!DisableFloatProfitRisePerc) Logging("sets.boolProfPerBalance = " + IntegerToString(sets.boolProfPerBalance));
+    if (!DisableFloatProfitFallPerc) Logging("sets.boolProfPerBalanceReverse = " + IntegerToString(sets.boolProfPerBalanceReverse));
+    if (!DisableFloatProfitRiseCurr) Logging("sets.boolProfQuanUnits = " + IntegerToString(sets.boolProfQuanUnits));
+    if (!DisableFloatProfitFallCurr) Logging("sets.boolProfQuanUnitsReverse = " + IntegerToString(sets.boolProfQuanUnitsReverse));
+    if (!DisableFloatProfitRisePoints) Logging("sets.boolProfPoints = " + IntegerToString(sets.boolProfPoints));
+    if (!DisableFloatProfitFallPoints) Logging("sets.boolProfPointsReverse = " + IntegerToString(sets.boolProfPointsReverse));
+    if (!DisableEquityUnitsLE) Logging("sets.boolEquityLessUnits = " + IntegerToString(sets.boolEquityLessUnits));
+    if (!DisableEquityUnitsGE) Logging("sets.boolEquityGrUnits = " + IntegerToString(sets.boolEquityGrUnits));
+    if (!DisableEquityPercLE) Logging("sets.boolEquityLessPerSnap = " + IntegerToString(sets.boolEquityLessPerSnap));
+    if (!DisableEquityPercGE) Logging("sets.boolEquityGrPerSnap = " + IntegerToString(sets.boolEquityGrPerSnap));
+    if (!DisableEquityMinusSnapshot) Logging("sets.boolEquityMinusSnapshot = " + IntegerToString(sets.boolEquityMinusSnapshot));
+    if (!DisableSnapshotMinusEquity) Logging("sets.boolSnapshotMinusEquity = " + IntegerToString(sets.boolSnapshotMinusEquity));
+    if (!DisableMarginUnitsLE) Logging("sets.boolMarginLessUnits = " + IntegerToString(sets.boolMarginLessUnits));
+    if (!DisableMarginUnitsGE) Logging("sets.boolMarginGrUnits = " + IntegerToString(sets.boolMarginGrUnits));
+    if (!DisableMarginPercLE) Logging("sets.boolMarginLessPerSnap = " + IntegerToString(sets.boolMarginLessPerSnap));
+    if (!DisableMarginPercGE) Logging("sets.boolMarginGrPerSnap = " + IntegerToString(sets.boolMarginGrPerSnap));
+    if (!DisableCurrentPriceGE) Logging("sets.boolPriceGE = " + IntegerToString(sets.boolPriceGE));
+    if (!DisableCurrentPriceLE) Logging("sets.boolPriceLE = " + IntegerToString(sets.boolPriceLE));
+    if (!DisableMarginLevelGE) Logging("sets.boolMarginLevelGE = " + IntegerToString(sets.boolMarginLevelGE));
+    if (!DisableMarginLevelLE) Logging("sets.boolMarginLevelLE = " + IntegerToString(sets.boolMarginLevelLE));
+    if (!DisableSpreadGE) Logging("sets.boolSpreadGE = " + IntegerToString(sets.boolSpreadGE));
+    if (!DisableSpreadLE) Logging("sets.boolSpreadLE = " + IntegerToString(sets.boolSpreadLE));
+    if (!DisableDailyProfitLossUnitsGE) Logging("sets.boolDailyProfitLossUnitsGE = " + IntegerToString(sets.boolDailyProfitLossUnitsGE));
+    if (!DisableDailyProfitLossUnitsLE) Logging("sets.boolDailyProfitLossUnitsLE = " + IntegerToString(sets.boolDailyProfitLossUnitsLE));
+    if (!DisableDailyProfitLossPointsGE) Logging("sets.boolDailyProfitLossPointsGE = " + IntegerToString(sets.boolDailyProfitLossPointsGE));
+    if (!DisableDailyProfitLossPointsLE) Logging("sets.boolDailyProfitLossPointsLE = " + IntegerToString(sets.boolDailyProfitLossPointsLE));
+    if (!DisableDailyProfitLossPercGE) Logging("sets.boolDailyProfitLossPercGE = " + IntegerToString(sets.boolDailyProfitLossPercGE));
+    if (!DisableDailyProfitLossPercLE) Logging("sets.boolDailyProfitLossPercLE = " + IntegerToString(sets.boolDailyProfitLossPercLE));
+    if (!DisableNumberOfPositionsGE) Logging("sets.boolNumberOfPositionsGE = " + IntegerToString(sets.boolNumberOfPositionsGE));
+    if (!DisableNumberOfOrdersGE) Logging("sets.boolNumberOfOrdersGE = " + IntegerToString(sets.boolNumberOfOrdersGE));
+    if (!DisableNumberOfPositionsLE) Logging("sets.boolNumberOfPositionsLE = " + IntegerToString(sets.boolNumberOfPositionsLE));
+    if (!DisableNumberOfOrdersLE) Logging("sets.boolNumberOfOrdersLE = " + IntegerToString(sets.boolNumberOfOrdersLE));
+    if (!DisableBalanceGE) Logging("sets.boolBalanceGE = " + IntegerToString(sets.boolBalanceGE));
+    if (!DisableBalanceLE) Logging("sets.boolBalanceLE = " + IntegerToString(sets.boolBalanceLE));
+    if (!DisableListenToSignal) Logging("sets.boolListenToSignal = " + IntegerToString(sets.boolListenToSignal));
+    if (!DisableFloatLossRisePerc) Logging("sets.doubleLossPerBalance = " + DoubleToString(sets.doubleLossPerBalance, 2));
+    if (!DisableFloatLossFallPerc) Logging("sets.doubleLossPerBalanceReverse = " + DoubleToString(sets.doubleLossPerBalanceReverse, 2));
+    if (!DisableFloatLossRiseCurr) Logging("sets.doubleLossQuanUnits = " + DoubleToString(sets.doubleLossQuanUnits, AccountCurrencyDigits));
+    if (!DisableFloatLossFallCurr) Logging("sets.doubleLossQuanUnitsReverse = " + DoubleToString(sets.doubleLossQuanUnitsReverse, AccountCurrencyDigits));
+    if (!DisableFloatLossRisePoints) Logging("sets.intLossPoints = " + IntegerToString(sets.intLossPoints));
+    if (!DisableFloatLossFallPoints) Logging("sets.intLossPointsReverse = " + IntegerToString(sets.intLossPointsReverse));
+    if (!DisableFloatProfitRisePerc) Logging("sets.doubleProfPerBalance = " + DoubleToString(sets.doubleProfPerBalance, 2));
+    if (!DisableFloatProfitFallPerc) Logging("sets.doubleProfPerBalanceReverse = " + DoubleToString(sets.doubleProfPerBalanceReverse, 2));
+    if (!DisableFloatProfitRiseCurr) Logging("sets.doubleProfQuanUnits = " + DoubleToString(sets.doubleProfQuanUnits, AccountCurrencyDigits));
+    if (!DisableFloatProfitFallCurr) Logging("sets.doubleProfQuanUnitsReverse = " + DoubleToString(sets.doubleProfQuanUnitsReverse, AccountCurrencyDigits));
+    if (!DisableFloatProfitRisePoints) Logging("sets.intProfPoints = " + IntegerToString(sets.intProfPoints));
+    if (!DisableFloatProfitFallPoints) Logging("sets.intProfPointsReverse = " + IntegerToString(sets.intProfPointsReverse));
+    if (!DisableEquityUnitsLE) Logging("sets.doubleEquityLessUnits = " + DoubleToString(sets.doubleEquityLessUnits, AccountCurrencyDigits));
+    if (!DisableEquityUnitsGE) Logging("sets.doubleEquityGrUnits = " + DoubleToString(sets.doubleEquityGrUnits, AccountCurrencyDigits));
+    if (!DisableEquityPercLE) Logging("sets.doubleEquityLessPerSnap = " + DoubleToString(sets.doubleEquityLessPerSnap, 2));
+    if (!DisableEquityPercGE) Logging("sets.doubleEquityGrPerSnap = " + DoubleToString(sets.doubleEquityGrPerSnap, 2));
+    if (!DisableEquityMinusSnapshot) Logging("sets.doubleEquityMinusSnapshot = " + DoubleToString(sets.doubleEquityMinusSnapshot, AccountCurrencyDigits));
+    if (!DisableSnapshotMinusEquity) Logging("sets.doubleSnapshotMinusEquity = " + DoubleToString(sets.doubleSnapshotMinusEquity, AccountCurrencyDigits));
+    if (!DisableMarginUnitsLE) Logging("sets.doubleMarginLessUnits = " + DoubleToString(sets.doubleMarginLessUnits, AccountCurrencyDigits));
+    if (!DisableMarginUnitsGE) Logging("sets.doubleMarginGrUnits = " + DoubleToString(sets.doubleMarginGrUnits, AccountCurrencyDigits));
+    if (!DisableMarginPercLE) Logging("sets.doubleMarginLessPerSnap = " + DoubleToString(sets.doubleMarginLessPerSnap, AccountCurrencyDigits));
+    if (!DisableMarginPercGE) Logging("sets.doubleMarginGrPerSnap = " + DoubleToString(sets.doubleMarginGrPerSnap, AccountCurrencyDigits));
+    if (!DisableCurrentPriceGE) Logging("sets.doublePriceGE = " + DoubleToString(sets.doublePriceGE, _Digits));
+    if (!DisableCurrentPriceLE) Logging("sets.doublePriceLE = " + DoubleToString(sets.doublePriceLE, _Digits));
+    if (!DisableMarginLevelGE) Logging("sets.doubleMarginLevelGE = " + DoubleToString(sets.doubleMarginLevelGE, 2) + "%");
+    if (!DisableMarginLevelLE) Logging("sets.doubleMarginLevelLE = " + DoubleToString(sets.doubleMarginLevelLE, 2) + "%");
+    if (!DisableSpreadGE) Logging("sets.intSpreadGE = " + IntegerToString(sets.intSpreadGE));
+    if (!DisableSpreadLE) Logging("sets.intSpreadLE = " + IntegerToString(sets.intSpreadLE));
+    if (!DisableDailyProfitLossUnitsGE) Logging("sets.doubleDailyProfitLossUnitsGE = " + DoubleToString(sets.doubleDailyProfitLossUnitsGE, 2));
+    if (!DisableDailyProfitLossUnitsLE) Logging("sets.doubleDailyProfitLossUnitsLE = " + DoubleToString(sets.doubleDailyProfitLossUnitsLE, 2));
+    if (!DisableDailyProfitLossPointsGE) Logging("sets.intDailyProfitLossPointsGE = " + IntegerToString(sets.intDailyProfitLossPointsGE));
+    if (!DisableDailyProfitLossPointsLE) Logging("sets.intDailyProfitLossPointsLE = " + IntegerToString(sets.intDailyProfitLossPointsLE));
+    if (!DisableDailyProfitLossPercGE) Logging("sets.doubleDailyProfitLossPercGE = " + DoubleToString(sets.doubleDailyProfitLossPercGE, 2));
+    if (!DisableDailyProfitLossPercLE) Logging("sets.doubleDailyProfitLossPercLE = " + DoubleToString(sets.doubleDailyProfitLossPercLE, 2));
+    if (!DisableNumberOfPositionsGE) Logging("sets.intNumberOfPositionsGE = " + IntegerToString(sets.intNumberOfPositionsGE));
+    if (!DisableNumberOfOrdersGE) Logging("sets.intNumberOfOrdersGE = " + IntegerToString(sets.intNumberOfOrdersGE));
+    if (!DisableNumberOfPositionsLE) Logging("sets.intNumberOfPositionsLE = " + IntegerToString(sets.intNumberOfPositionsLE));
+    if (!DisableNumberOfOrdersLE) Logging("sets.intNumberOfOrdersLE = " + IntegerToString(sets.intNumberOfOrdersLE));
+    if (!DisableBalanceGE) Logging("sets.doubleBalanceGE = " + DoubleToString(sets.doubleBalanceGE, AccountCurrencyDigits));
+    if (!DisableBalanceLE) Logging("sets.doubleBalanceLE = " + DoubleToString(sets.doubleBalanceLE, AccountCurrencyDigits));
+    if (!DisableListenToSignal) Logging("sets.intListenToSignal = " + IntegerToString(sets.intListenToSignal));
     Logging("sets.ClosePos = " + IntegerToString(sets.ClosePos));
     Logging("sets.doubleClosePerecentage = " + DoubleToString(sets.doubleClosePercentage) + "%");
     Logging("sets.CloseWhichPositions = " + EnumToString(sets.CloseWhichPositions));
@@ -4712,6 +5257,8 @@ void CAccountProtector::Logging_Current_Settings()
     Logging("sets.EnableAuto = " + IntegerToString(sets.EnableAuto));
     Logging("sets.RecaptureSnapshots = " + IntegerToString(sets.RecaptureSnapshots));
     Logging("sets.CloseAllOtherCharts = " + IntegerToString(sets.CloseAllOtherCharts));
+    Logging("sets.EmitSignal = " + IntegerToString(sets.EmitSignal));
+    Logging("sets.SignalChannel = " + IntegerToString(sets.SignalChannel));
     Logging("sets.SelectedTab = " + EnumToString(sets.SelectedTab));
     Logging("sets.Log_file_name = " + LogFileName);
     Logging("------End Logging Current Parameters------");
@@ -4731,7 +5278,8 @@ void CAccountProtector::Logging_Condition_Is_Met()
     {
         ticket = PositionGetTicket(i);
         if (ticket <= 0) Logging("Account Protector: PositionGetTicket failed " + IntegerToString(GetLastError()));
-		if (CheckFilterLossProfit(PositionGetDouble(POSITION_PROFIT))) continue;
+            bool PL_filter = false;
+		if (CheckFilterLossProfit(PositionGetDouble(POSITION_PROFIT))) PL_filter = true;//continue;
 		if (CheckFilterSymbol(PositionGetString(POSITION_SYMBOL))) continue;
 		if (CheckFilterComment(PositionGetString(POSITION_COMMENT))) continue;
         if (CheckFilterDirection((int)PositionGetInteger(POSITION_TYPE))) continue;
@@ -4739,17 +5287,34 @@ void CAccountProtector::Logging_Condition_Is_Met()
 		for (int j = -1; j < magic_array_counter; j++)
 		{
 			if ((magic_array_counter > 0) && (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j))) continue;
-            else if ((PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) || (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL))
+            if ((PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) || (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL))
             {
                 double position_floating_profit = PositionGetDouble(POSITION_PROFIT);
-                if (sets.CountCommSwaps) position_floating_profit += HistoryDealGetDouble(ticket, DEAL_COMMISSION) + PositionGetDouble(POSITION_SWAP);
-                floating_profit += position_floating_profit;
-                market++;
+                if (sets.CountCommSwaps)
+                {
+                    // Retrieving the position's commission involves going through its deals:
+                    HistorySelectByPosition(PositionGetInteger(POSITION_IDENTIFIER));
+                    double comm = 0;
+                    for (int k = HistoryDealsTotal() - 1; k >= 0; k--)
+                    {
+                        ulong deal_ticket = HistoryDealGetTicket(k);
+                        if (deal_ticket > 0)
+                        {
+                            comm += HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION); // In netting mode, multiple deals are possible.
+                        }
+                    } 
+                    position_floating_profit += comm + PositionGetDouble(POSITION_SWAP);
+                }
+                if (!PL_filter) // Only count for filtered orders.
+                {
+                    floating_profit += position_floating_profit;
+                    market++;
+                }
                 ArrayResize(PositionsByProfit, market, 100); // Reserve extra physical memory to increase the resizing speed.
                 if ((CloseFirst != ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST) && (CloseFirst != ENUM_CLOSE_TRADES_NEAREST_FIRST)) PositionsByProfit[market - 1][0] = position_floating_profit; // Normal profit.
                 else PositionsByProfit[market - 1][0] = MathAbs(PositionGetDouble(POSITION_PRICE_OPEN) - PositionGetDouble(POSITION_PRICE_CURRENT)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT); 
                 PositionsByProfit[market - 1][1] = (double)ticket;
-                TotalVolume += PositionGetDouble(POSITION_VOLUME);
+                TotalVolume += PositionGetDouble(POSITION_VOLUME); // Used to close trades, so no need to filter by P/L.
             }
             break; // Order already processed - no point to process this order with other magic numbers.
         }
@@ -4786,7 +5351,7 @@ void CAccountProtector::Logging_Condition_Is_Met()
 }
 
 // Prepares subject and body texts.
-void CAccountProtector::PrepareSubjectBody(string &subject, string &body, const string title, const datetime timestamp, const int pos_closed, const int pend_deleted, const bool autotrade_dis, const bool push_sent, const bool mail_sent, const bool platf_closed, const bool autotrade_enabled, const bool snapshots_recaptured, const bool other_charts_closed, const bool short_body = false)
+void CAccountProtector::PrepareSubjectBody(string &subject, string &body, const string title, const datetime timestamp, const int pos_closed, const int pend_deleted, const bool autotrade_dis, const bool push_sent, const bool mail_sent, const bool platf_closed, const bool autotrade_enabled, const bool snapshots_recaptured, const bool other_charts_closed, const bool emit_signal, const bool short_body = false)
 {
     subject = AccountInfoString(ACCOUNT_COMPANY) + ", Account #" + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN)) + ": " + title;
     body = TimeToString(timestamp, TIME_DATE | TIME_MINUTES | TIME_SECONDS);
@@ -4810,6 +5375,7 @@ void CAccountProtector::PrepareSubjectBody(string &subject, string &body, const 
     if (autotrade_enabled) body += "\r\nAutotrading enabled.";
     if (snapshots_recaptured) body += "\r\nSnapshots recaptured.";
     if (other_charts_closed) body += "\r\nOther charts closed.";
+    if (emit_signal) body += "\r\nSignal emited on channel " + IntegerToString(sets.SignalChannel) + ".";
     if (LogFileName != "") body += "\r\nSee " + LogFileName + " for details.";
     body += "\r\n";
     body += "\r\nGenerated by Account Protector v." + Version + " (https://www.earnforex.com/).";
@@ -4832,7 +5398,7 @@ void CAccountProtector::SendNotificationFunction(string subject, string body)
     else Logging("Push notification about actions sent.");
 }
 
-// Close all charts except thecurrent one.
+// Close all charts except the current one.
 void CAccountProtector::CloseAllOtherCharts()
 {
     // Cycle through all charts starting from the first one.
@@ -4851,26 +5417,45 @@ void CAccountProtector::CheckOneCondition(T &SettingsEditValue, bool &SettingsCh
 {
     if (SettingsCheckboxValue)
     {
-        AtLeastOneConditionTriggered = true;
-        if ((ConditionDelay > 0) && (ConditionTimer == 0))
+        NumberConditionsTriggered++;
+        if ((!WaitForAllConditions) || (NumberConditionsTriggered == TotalConditionsNumber))
         {
-            Logging("CONDITION IS MET: " + EventDescription + ". Delay of " + IntegerToString(ConditionDelay) + " s is active.");
-            // Turn on condition delay timer.
-            ConditionTimer = TimeLocal();
-        }
-        else if ((ConditionDelay == 0) || (TimeLocal() - ConditionTimer >= ConditionDelay))
-        {
-            Logging("CONDITION IS MET: " + EventDescription);
-            TriggeredCondition = triggered_condition;
-            Trigger_Actions(EventDescription);
-            if (!DoNotDisableConditions)
+            if ((ConditionDelay > 0) && (ConditionTimer == 0))
             {
-                SettingsCheckboxValue = false;
-                SettingsEditValue = 0;
+                Logging("CONDITION IS MET: " + EventDescription + ". Delay of " + IntegerToString(ConditionDelay) + " s is active.");
+                // Turn on condition delay timer.
+                ConditionTimer = TimeLocal();
             }
-            SaveSettingsOnDisk();
-            // Turn off condition delay timer if it was turned on.
-            ConditionTimer = 0;
+            else if ((ConditionDelay == 0) || (TimeLocal() - ConditionTimer >= ConditionDelay))
+            {
+                Logging("CONDITION IS MET: " + EventDescription);
+                TriggeredCondition = triggered_condition;
+                Trigger_Actions(EventDescription);
+                if (!DoNotDisableConditions)
+                {
+                    if (WaitForAllConditions)
+                    {
+                        ResetAllTickedConditions = true; // RefreshPanelControls() will carry out the actual reset.
+                        LastConditionsTriggered = 0;
+                    }
+                    else
+                    {
+                        SettingsCheckboxValue = false;
+                        SettingsEditValue = 0;
+                    }
+                }
+                SaveSettingsOnDisk();
+                // Turn off condition delay timer if it was turned on.
+                ConditionTimer = 0;
+            }
+        }
+        else
+        {
+            if (NumberConditionsTriggered > LastConditionsTriggered) // Avoid being flooded with 'condition met' messages.
+            {
+                Logging("CONDITION IS MET: " + EventDescription + ". Conditions left to meet: " + IntegerToString(TotalConditionsNumber - NumberConditionsTriggered) + " more to go!");
+                LastConditionsTriggered = NumberConditionsTriggered;
+            }
         }
     }
 }
@@ -4878,224 +5463,76 @@ void CAccountProtector::CheckOneCondition(T &SettingsEditValue, bool &SettingsCh
 // Checks if some of the conditions are met.
 void CAccountProtector::CheckAllConditions()
 {
-    double floating_profit = 0;
-    int floating_profit_points = 0;
-    double daily_profit_loss_units = 0, daily_profit_loss_perc = 0;
-    int daily_profit_loss_points = 0;
-    int market = 0, pending = 0;
-
     if (No_Condition() || No_Action()) return;
 
-    AtLeastOneConditionTriggered = false;
-
-    // Calculating floating profit/loss.
-    for (int i = 0; i < PositionsTotal(); i++)
-    {
-        ulong ticket = PositionGetTicket(i);
-        if (ticket <= 0)
-        {
-            Logging("Account Protector: PositionGetTicket failed " + IntegerToString(GetLastError()));
-            continue;
-        }
-
-		if (CheckFilterLossProfit(PositionGetDouble(POSITION_PROFIT))) continue;
-        if (CheckFilterSymbol(PositionGetString(POSITION_SYMBOL))) continue;
-        if (CheckFilterComment(PositionGetString(POSITION_COMMENT))) continue;
-        if (CheckFilterDirection((int)PositionGetInteger(POSITION_TYPE))) continue;
-        // Starting from -1 index to check for positions irrespective of their Magic numbers.
-        for (int j = -1; j < magic_array_counter; j++)
-        {
-            if ((magic_array_counter > 0) && (CheckFilterMagic(PositionGetInteger(POSITION_MAGIC), j))) continue;
-
-            floating_profit += PositionGetDouble(POSITION_PROFIT);
-            if (sets.CountCommSwaps) floating_profit += HistoryDealGetDouble(ticket, DEAL_COMMISSION) + PositionGetDouble(POSITION_SWAP);
-
-            if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) floating_profit_points += (int)MathRound((SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT));
-            else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL) floating_profit_points += (int)MathRound((PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT));
-            market++;
-            break; // Position already processed - no point to process this order with other magic numbers.
-        }
-    }
-
-    // Calculating the number of pending orders (if necessary).
-    if ((!DisableNumberOfOrdersGE) || (!DisableNumberOfOrdersLE))
-    {
-        for (int i = 0; i < OrdersTotal(); i++)
-        {
-            ulong ticket = OrderGetTicket(i);
-            if (ticket <= 0)
-            {
-                Logging("Account Protector: OrderGetTicket failed " + IntegerToString(GetLastError()));
-                continue;
-            }
-    
-            if (CheckFilterSymbol(OrderGetString(ORDER_SYMBOL))) continue;
-            if (CheckFilterComment(OrderGetString(ORDER_COMMENT))) continue;
-            if (CheckFilterDirection((int)OrderGetInteger(ORDER_TYPE))) continue;
-            // Starting from -1 index to check for positions irrespective of their Magic numbers.
-            for (int j = -1; j < magic_array_counter; j++)
-            {
-                if ((magic_array_counter > 0) && (CheckFilterMagic(OrderGetInteger(ORDER_MAGIC), j))) continue;
-                pending++;
-                break; // Order already processed - no point to process this order with other magic numbers.
-            }
-        }
-    }
-
-    // Calculating daily profit/loss if necessary.
-    if (
-        ((!DisableDailyProfitLossUnitsGE) && (sets.boolDailyProfitLossUnitsGE)) ||
-        ((!DisableDailyProfitLossUnitsLE) && (sets.boolDailyProfitLossUnitsLE)) ||
-        ((!DisableDailyProfitLossPointsGE) && (sets.boolDailyProfitLossPointsGE)) ||
-        ((!DisableDailyProfitLossPointsLE) && (sets.boolDailyProfitLossPointsLE)) ||
-        ((!DisableDailyProfitLossPercGE) && (sets.boolDailyProfitLossPercGE)) ||
-        ((!DisableDailyProfitLossPercLE) && (sets.boolDailyProfitLossPercLE))
-       )
-    {
-        // Required for daily profit/loss in points.
-        ulong exit_deal_tickets[], exit_deal_pos_ids[];
-        double exit_deal_exit_prices[];
-        int cnt = 0;
-        // Cycle through daily exit deals.
-        datetime start_of_today = StringToTime(TimeToString(TimeCurrent(), TIME_DATE)); // 00:00 of the current day by broker's time.
-        HistorySelect(start_of_today, TimeCurrent()); // Today.
-        int deals_total = HistoryDealsTotal();
-        for (int i = 0; i < deals_total; i++)
-        {
-            ulong deal_ticket = HistoryDealGetTicket(i);
-            if (deal_ticket == 0)
-            {
-                Logging("Account Protector: HistoryDealGetTicket failed " + IntegerToString(GetLastError()));
-                continue;
-            }
-            if (HistoryDealGetInteger(deal_ticket, DEAL_ENTRY) == DEAL_ENTRY_IN) continue; // All other types of deals serve to exit a position.
-            if ((HistoryDealGetInteger(deal_ticket, DEAL_TYPE) != DEAL_TYPE_BUY) && (HistoryDealGetInteger(deal_ticket, DEAL_TYPE) != DEAL_TYPE_SELL)) continue; // Wrong kinds of deals.
-            if (CheckFilterLossProfit(HistoryDealGetDouble(deal_ticket, DEAL_PROFIT))) continue;
-            if (CheckFilterSymbol(HistoryDealGetString(deal_ticket, DEAL_SYMBOL))) continue;
-            if (CheckFilterComment(HistoryDealGetString(deal_ticket, DEAL_COMMENT))) continue;
-            if (CheckFilterDirection((int)HistoryDealGetInteger(deal_ticket, DEAL_TYPE))) continue;
-            // Starting from -1 index to check for orders irrespective of their Magic numbers.
-            for (int j = -1; j < magic_array_counter; j++)
-            {
-                if ((magic_array_counter > 0) && (CheckFilterMagic(HistoryDealGetInteger(deal_ticket, DEAL_MAGIC), j))) continue;
-    
-                // Record all the deals to caclulate daily points profit/loss.
-                ArrayResize(exit_deal_tickets, cnt + 1, 100);
-                ArrayResize(exit_deal_pos_ids, cnt + 1, 100);
-                ArrayResize(exit_deal_exit_prices, cnt + 1, 100);
-                exit_deal_tickets[cnt] = deal_ticket;
-                exit_deal_pos_ids[cnt] = HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID);
-                exit_deal_exit_prices[cnt] = HistoryDealGetDouble(deal_ticket, DEAL_PRICE);
-                cnt++;
-                
-                daily_profit_loss_units += HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
-                if (sets.CountCommSwaps) daily_profit_loss_units += HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION) + HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
-                break; // Order already processed - no point to process this order with other magic numbers.
-            }
-        }
-
-        // Only if we need daily points profit/loss.
-        if (((!DisableDailyProfitLossPointsGE) && (sets.boolDailyProfitLossPointsGE)) ||
-            ((!DisableDailyProfitLossPointsLE) && (sets.boolDailyProfitLossPointsLE)))
-        {
-            // Run another cycle through that array to get all relevant (by pos_id) entry deals.
-            // In fact, we don't need all. We just need the first one, which is an entry deal and isn't the same as the exit deal - this can happen we have an IN_OUT deal.
-            for (int i = 0; i < cnt; i++)
-            {
-                HistorySelectByPosition(exit_deal_pos_ids[i]);
-                for (int y = 0; y < HistoryDealsTotal(); y++)
-                {
-                    ulong entry_deal_ticket = HistoryDealGetTicket(y);
-                    if (HistoryDealGetInteger(entry_deal_ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT) continue; // Not an entry deal.
-                    if (entry_deal_ticket == exit_deal_tickets[i]) continue; // Same deal.
-
-                    // Use the first applicable entry deal's price as an entry price for daily point profit/loss calculation.
-                    double deal_entry_price = HistoryDealGetDouble(entry_deal_ticket, DEAL_PRICE);
-
-                    // This is a very crude and imprecise method when used on a Netting account, but calculating points profit/loss across uninformly sized positions is crazy to start with.
-                    if (HistoryDealGetInteger(entry_deal_ticket, DEAL_TYPE) == DEAL_TYPE_BUY) daily_profit_loss_points += (int)MathRound((exit_deal_exit_prices[i] - deal_entry_price) / SymbolInfoDouble(HistoryDealGetString(entry_deal_ticket, DEAL_SYMBOL), SYMBOL_POINT));
-                    else if (HistoryDealGetInteger(entry_deal_ticket, DEAL_TYPE) == DEAL_TYPE_SELL) daily_profit_loss_points += (int)MathRound((deal_entry_price - exit_deal_exit_prices[i]) / SymbolInfoDouble(HistoryDealGetString(entry_deal_ticket, DEAL_SYMBOL), SYMBOL_POINT));
-                    break; // Move on to the next exit deal.
-                }
-            }
-        }
-        if (CountFloatingInDailyPL)
-        {
-            // Current floating profit/loss is a part of the daily profit/loss.
-            daily_profit_loss_units += floating_profit;
-            daily_profit_loss_points += floating_profit_points;
-        }
-        // Percentage of balance at the start of the day calculated by subtracting the current daily profit from the current balance.
-        if (AccountInfoDouble(ACCOUNT_BALANCE) - daily_profit_loss_units != 0) daily_profit_loss_perc = daily_profit_loss_units / (AccountInfoDouble(ACCOUNT_BALANCE) - daily_profit_loss_units) * 100;
-        else daily_profit_loss_perc = 100; // Zero-divide protection
-    }
+    NumberConditionsTriggered = 0;
 
     string AdditionalFunds_Asterisk = "";
     if (AdditionalFunds != 0) AdditionalFunds_Asterisk = "*";
 
     // Floating loss rose to <Actual percentage> % of balance.
-    if ((!DisableFloatLossRisePerc) && (floating_profit <= -(AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleLossPerBalance / 100))
+    if ((!DisableFloatLossRisePerc) && (FloatingProfit <= -(AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleLossPerBalance / 100))
         CheckOneCondition(sets.doubleLossPerBalance, sets.boolLossPerBalance, "Floating loss rose to " + DoubleToString(sets.doubleLossPerBalance, 2) + "% of balance", Floating_loss_rises_to_perecentage);
 
     // Floating loss fell to <Actual percentage> % of balance.
-    if ((!DisableFloatLossFallPerc) && (floating_profit >= -(AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleLossPerBalanceReverse / 100))
+    if ((!DisableFloatLossFallPerc) && (FloatingProfit >= -(AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleLossPerBalanceReverse / 100))
         CheckOneCondition(sets.doubleLossPerBalanceReverse, sets.boolLossPerBalanceReverse, "Floating loss fell to " + DoubleToString(sets.doubleLossPerBalanceReverse, 2) + "% of balance");
 
     // Floating loss rose to <Actual number> <currency ISO code>.
-    if ((!DisableFloatLossRiseCurr) && (floating_profit <= -sets.doubleLossQuanUnits))
+    if ((!DisableFloatLossRiseCurr) && (FloatingProfit <= -sets.doubleLossQuanUnits))
         CheckOneCondition(sets.doubleLossQuanUnits, sets.boolLossQuanUnits, "Floating loss rose to " + DoubleToString(sets.doubleLossQuanUnits, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY), Floating_loss_rises_to_currency_units);
 
     // Floating loss fell to <Actual number> <currency ISO code>.
-    if ((!DisableFloatLossFallCurr) && (floating_profit >= -sets.doubleLossQuanUnitsReverse))
+    if ((!DisableFloatLossFallCurr) && (FloatingProfit >= -sets.doubleLossQuanUnitsReverse))
         CheckOneCondition(sets.doubleLossQuanUnitsReverse, sets.boolLossQuanUnitsReverse, "Floating loss fell to " + DoubleToString(sets.doubleLossQuanUnitsReverse, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
 
     // Floating loss rose to <Actual number> points.
-    if ((!DisableFloatLossRisePoints) && (floating_profit_points <= - sets.intLossPoints))
+    if ((!DisableFloatLossRisePoints) && (FloatingProfitPoints <= - sets.intLossPoints))
         CheckOneCondition(sets.intLossPoints, sets.boolLossPoints, "Floating loss rose to " + IntegerToString(sets.intLossPoints) + " points", Floating_loss_rises_to_points);
 
     // Floating loss fell to <Actual number> points.
-    if ((!DisableFloatLossFallPoints) && (floating_profit_points >= - sets.intLossPointsReverse))
+    if ((!DisableFloatLossFallPoints) && (FloatingProfitPoints >= - sets.intLossPointsReverse))
         CheckOneCondition(sets.intLossPointsReverse, sets.boolLossPointsReverse, "Floating loss fell to " + IntegerToString(sets.intLossPointsReverse) + " points");
 
     // Floating profit rose to <Actual percentage> % of balance.
-    if ((!DisableFloatProfitRisePerc) && (floating_profit >= (AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleProfPerBalance / 100))
+    if ((!DisableFloatProfitRisePerc) && (FloatingProfit >= (AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleProfPerBalance / 100))
         CheckOneCondition(sets.doubleProfPerBalance, sets.boolProfPerBalance, "Floating profit rose to " + DoubleToString(sets.doubleProfPerBalance, 2) + "% of balance", Floating_profit_rises_to_perecentage);
 
     // Floating profit fell to <Actual percentage> % of balance.
-    if ((!DisableFloatProfitFallPerc) && (floating_profit <= (AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleProfPerBalanceReverse / 100))
+    if ((!DisableFloatProfitFallPerc) && (FloatingProfit <= (AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleProfPerBalanceReverse / 100))
         CheckOneCondition(sets.doubleProfPerBalanceReverse, sets.boolProfPerBalanceReverse, "Floating profit fell to " + DoubleToString(sets.doubleProfPerBalanceReverse, 2) + "% of balance");
 
     // Floating profit rose to <Actual number> <currency ISO code>.
-    if ((!DisableFloatProfitRiseCurr) && (floating_profit >= sets.doubleProfQuanUnits))
+    if ((!DisableFloatProfitRiseCurr) && (FloatingProfit >= sets.doubleProfQuanUnits))
         CheckOneCondition(sets.doubleProfQuanUnits, sets.boolProfQuanUnits, "Floating profit rose to " + DoubleToString(sets.doubleProfQuanUnits, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY), Floating_profit_rises_to_currency_units);
 
     // Floating profit fell to <Actual number> <currency ISO code>.
-    if ((!DisableFloatProfitFallCurr) && (floating_profit <= sets.doubleProfQuanUnitsReverse))
+    if ((!DisableFloatProfitFallCurr) && (FloatingProfit <= sets.doubleProfQuanUnitsReverse))
         CheckOneCondition(sets.doubleProfQuanUnitsReverse, sets.boolProfQuanUnitsReverse, "Floating profit fell to " + DoubleToString(sets.doubleProfQuanUnitsReverse, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
 
     // Floating profit rose to <Actual number> points.
-    if ((!DisableFloatProfitRisePoints) && (floating_profit_points >= sets.intProfPoints))
+    if ((!DisableFloatProfitRisePoints) && (FloatingProfitPoints >= sets.intProfPoints))
         CheckOneCondition(sets.intProfPoints, sets.boolProfPoints, "Floating profit rose to " + IntegerToString(sets.intProfPoints) + " points.", Floating_profit_rises_to_points);
 
     // Floating profit fell to <Actual number> points.
-    if ((!DisableFloatProfitFallPoints) && (floating_profit_points <= sets.intProfPointsReverse))
+    if ((!DisableFloatProfitFallPoints) && (FloatingProfitPoints <= sets.intProfPointsReverse))
         CheckOneCondition(sets.intProfPointsReverse, sets.boolProfPointsReverse, "Floating profit fell to " + IntegerToString(sets.intProfPointsReverse) + " points.");
 
     // Equity fell to <Actual number> <currency ISO code>.
-    if (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds <= sets.doubleEquityLessUnits)
+    if ((!DisableEquityUnitsLE) && (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds <= sets.doubleEquityLessUnits))
         CheckOneCondition(sets.doubleEquityLessUnits, sets.boolEquityLessUnits, "Equity fell to " + DoubleToString(sets.doubleEquityLessUnits, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
 
     // Equity rose to <Actual number> <currency ISO code>.
-    if (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds >= sets.doubleEquityGrUnits)
+    if ((!DisableEquityUnitsGE) && (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds >= sets.doubleEquityGrUnits))
         CheckOneCondition(sets.doubleEquityGrUnits, sets.boolEquityGrUnits, "Equity rose to " + DoubleToString(sets.doubleEquityGrUnits, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
 
     // Equity fell to <Actual percentage>% of previous snapshot (<snapshot value> <currency ISO code>).
-    if (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds <= sets.SnapEquity * sets.doubleEquityLessPerSnap / 100)
-        CheckOneCondition(sets.doubleEquityLessPerSnap, sets.boolEquityLessPerSnap, "Equity fell to " + DoubleToString(sets.doubleEquityLessPerSnap, 2) + "% of previous snapshot (" + DoubleToString(sets.SnapEquity, 2) + " " + AccountInfoString(ACCOUNT_CURRENCY) + ")");
+    if ((!DisableEquityPercLE) && (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds <= sets.SnapEquity * sets.doubleEquityLessPerSnap / 100))
+        CheckOneCondition(sets.doubleEquityLessPerSnap, sets.boolEquityLessPerSnap, "Equity fell to " + DoubleToString(sets.doubleEquityLessPerSnap, 2) + "% of previous snapshot (" + DoubleToString(sets.SnapEquity, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY) + ")");
 
     // Equity rose to <Actual percentage>% of previous snapshot (<snapshot value> <currency ISO code>).
-    if (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds >= sets.SnapEquity * sets.doubleEquityGrPerSnap / 100)
-        CheckOneCondition(sets.doubleEquityGrPerSnap, sets.boolEquityGrPerSnap, "Equity rose to " + DoubleToString(sets.doubleEquityGrPerSnap, 2) + "% of previous snapshot (" + DoubleToString(sets.SnapEquity, 2) + " " + AccountInfoString(ACCOUNT_CURRENCY) + ")");
+    if ((!DisableEquityPercGE) && (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds >= sets.SnapEquity * sets.doubleEquityGrPerSnap / 100))
+        CheckOneCondition(sets.doubleEquityGrPerSnap, sets.boolEquityGrPerSnap, "Equity rose to " + DoubleToString(sets.doubleEquityGrPerSnap, 2) + "% of previous snapshot (" + DoubleToString(sets.SnapEquity, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY) + ")");
 
     // Equity - Snapshot >= <Actual number> <currency ISO code>.
     if ((!DisableEquityMinusSnapshot) && (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds - sets.SnapEquity >= sets.doubleEquityMinusSnapshot))
@@ -5106,20 +5543,20 @@ void CAccountProtector::CheckAllConditions()
         CheckOneCondition(sets.doubleSnapshotMinusEquity, sets.boolSnapshotMinusEquity, "Snapshot minus Equity >= " + DoubleToString(sets.doubleSnapshotMinusEquity, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
 
     // Free Margin fell to <Actual number> <currency ISO code>.
-    if (AccountInfoDouble(ACCOUNT_MARGIN_FREE) + AdditionalFunds <= sets.doubleMarginLessUnits)
+    if ((!DisableMarginUnitsLE) && (AccountInfoDouble(ACCOUNT_MARGIN_FREE) + AdditionalFunds <= sets.doubleMarginLessUnits))
         CheckOneCondition(sets.doubleMarginLessUnits, sets.boolMarginLessUnits, "Free Margin fell to " + DoubleToString(sets.doubleMarginLessUnits, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
 
     // Free Margin rose to <Actual number> <currency ISO code>.
-    if (AccountInfoDouble(ACCOUNT_MARGIN_FREE) + AdditionalFunds >= sets.doubleMarginGrUnits)
+    if ((!DisableMarginUnitsGE) && (AccountInfoDouble(ACCOUNT_MARGIN_FREE) + AdditionalFunds >= sets.doubleMarginGrUnits))
         CheckOneCondition(sets.doubleMarginGrUnits, sets.boolMarginGrUnits, "Free Margin rose to " + DoubleToString(sets.doubleMarginGrUnits, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
 
     // Free Margin fell to <Actual percentage>% of previous snapshot (<snapshot value> <currency ISO code>).
-    if (AccountInfoDouble(ACCOUNT_MARGIN_FREE) + AdditionalFunds <= sets.SnapMargin * sets.doubleMarginLessPerSnap / 100)
-        CheckOneCondition(sets.doubleMarginLessPerSnap, sets.boolMarginLessPerSnap, "Free Margin fell to " + DoubleToString(sets.doubleMarginLessPerSnap, 2) + "% of previous snapshot (" + DoubleToString(sets.SnapMargin, 2) + " " + AccountInfoString(ACCOUNT_CURRENCY) + ")");
+    if ((!DisableMarginPercLE) && (AccountInfoDouble(ACCOUNT_MARGIN_FREE) + AdditionalFunds <= sets.SnapMargin * sets.doubleMarginLessPerSnap / 100))
+        CheckOneCondition(sets.doubleMarginLessPerSnap, sets.boolMarginLessPerSnap, "Free Margin fell to " + DoubleToString(sets.doubleMarginLessPerSnap, 2) + "% of previous snapshot (" + DoubleToString(sets.SnapMargin, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY) + ")");
 
     // Free Margin rose to <Actual percentage>% of previous snapshot (<snapshot value> <currency ISO code>).
-    if (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds >= sets.SnapMargin * sets.doubleMarginGrPerSnap / 100)
-        CheckOneCondition(sets.doubleMarginGrPerSnap, sets.boolMarginGrPerSnap, "Free Margin rose to " + DoubleToString(sets.doubleMarginGrPerSnap, 2) + "% of previous snapshot (" + DoubleToString(sets.SnapMargin, 2) + " " + AccountInfoString(ACCOUNT_CURRENCY) + ")");
+    if ((!DisableMarginPercGE)&& (AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds >= sets.SnapMargin * sets.doubleMarginGrPerSnap / 100))
+        CheckOneCondition(sets.doubleMarginGrPerSnap, sets.boolMarginGrPerSnap, "Free Margin rose to " + DoubleToString(sets.doubleMarginGrPerSnap, 2) + "% of previous snapshot (" + DoubleToString(sets.SnapMargin, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY) + ")");
 
     // Current price greater or equal to <value>.
     if ((!DisableCurrentPriceGE) && (SymbolInfoDouble(Symbol(), SYMBOL_ASK) >= sets.doublePriceGE))
@@ -5148,8 +5585,8 @@ void CAccountProtector::CheckAllConditions()
     bool CheckDailyConditions = true;
     if ((DoNotDisableConditions) && (DoNotDisableActions)) // Two main circumstances that could lead to infinite attempts to do something.
     {
-        if (((!sets.ClosePos) || ((sets.ClosePos) && (market == 0)))  && // Close all, but there is nothing to close.
-            ((!sets.DeletePend) || ((sets.DeletePend) && (pending == 0))) && // Delete all pending, but there is nothing to delete.
+        if (((!sets.ClosePos) || ((sets.ClosePos) && (NumberOfMarketOrders == 0)))  && // Close all, but there is nothing to close.
+            ((!sets.DeletePend) || ((sets.DeletePend) && (NumberOfPendingOrders == 0))) && // Delete all pending, but there is nothing to delete.
             ((!sets.DisAuto) || ((sets.DisAuto) && (!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)))) && // Disable AT, but it's already disabled.
             (!sets.ClosePlatform) && (!sets.EnableAuto) && (!sets.CloseAllOtherCharts) && (!sets.RecaptureSnapshots)) // All other actions (except notifications should be disabled).
         {
@@ -5160,45 +5597,60 @@ void CAccountProtector::CheckAllConditions()
     if (CheckDailyConditions)
     {
         // Daily profit/loss greater or equal to <value> currency units.
-        if ((!DisableDailyProfitLossUnitsGE) && (daily_profit_loss_units >= sets.doubleDailyProfitLossUnitsGE))
-            CheckOneCondition(sets.doubleDailyProfitLossUnitsGE, sets.boolDailyProfitLossUnitsGE, "Daily profit/loss greater or equal to " + DoubleToString(sets.doubleDailyProfitLossUnitsGE, 2) + " " + AccountInfoString(ACCOUNT_CURRENCY));
+        if ((!DisableDailyProfitLossUnitsGE) && (DailyProfitLossUnits >= sets.doubleDailyProfitLossUnitsGE))
+            CheckOneCondition(sets.doubleDailyProfitLossUnitsGE, sets.boolDailyProfitLossUnitsGE, "Daily profit/loss greater or equal to " + DoubleToString(sets.doubleDailyProfitLossUnitsGE, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
     
         // Daily profit/loss less or equal to <value> currency units.
-        if ((!DisableDailyProfitLossUnitsLE) && (daily_profit_loss_units <= sets.doubleDailyProfitLossUnitsLE))
-            CheckOneCondition(sets.doubleDailyProfitLossUnitsLE, sets.boolDailyProfitLossUnitsLE, "Daily profit/loss less or equal to " + DoubleToString(sets.doubleDailyProfitLossUnitsLE, 2) + " " + AccountInfoString(ACCOUNT_CURRENCY));
+        if ((!DisableDailyProfitLossUnitsLE) && (DailyProfitLossUnits <= sets.doubleDailyProfitLossUnitsLE))
+            CheckOneCondition(sets.doubleDailyProfitLossUnitsLE, sets.boolDailyProfitLossUnitsLE, "Daily profit/loss less or equal to " + DoubleToString(sets.doubleDailyProfitLossUnitsLE, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
     
         // Daily profit/loss greater or equal to <value> points.
-        if ((!DisableDailyProfitLossPointsGE) && (daily_profit_loss_points >= sets.intDailyProfitLossPointsGE))
+        if ((!DisableDailyProfitLossPointsGE) && (DailyProfitLossPoints >= sets.intDailyProfitLossPointsGE))
             CheckOneCondition(sets.intDailyProfitLossPointsGE, sets.boolDailyProfitLossPointsGE, "Daily profit/loss greater or equal to " + IntegerToString(sets.intDailyProfitLossPointsGE));
     
         // Daily profit/loss less or equal to <value> points.
-        if ((!DisableDailyProfitLossPointsLE) && (daily_profit_loss_points <= sets.intDailyProfitLossPointsLE))
+        if ((!DisableDailyProfitLossPointsLE) && (DailyProfitLossPoints <= sets.intDailyProfitLossPointsLE))
             CheckOneCondition(sets.intDailyProfitLossPointsLE, sets.boolDailyProfitLossPointsLE, "Daily profit/loss less or equal to " + IntegerToString(sets.intDailyProfitLossPointsLE));
     
         // Daily profit/loss greater or equal to <value> %.
-        if ((!DisableDailyProfitLossPercGE) && (daily_profit_loss_perc >= sets.doubleDailyProfitLossPercGE))
+        if ((!DisableDailyProfitLossPercGE) && (DailyProfitLossPerc >= sets.doubleDailyProfitLossPercGE))
             CheckOneCondition(sets.doubleDailyProfitLossPercGE, sets.boolDailyProfitLossPercGE, "Daily profit/loss greater or equal to " + DoubleToString(sets.doubleDailyProfitLossPercGE, 2) + "% of balance");
     
         // Daily profit/loss less or equal to <value> %.
-        if ((!DisableDailyProfitLossPercLE) && (daily_profit_loss_perc <= sets.doubleDailyProfitLossPercLE))
+        if ((!DisableDailyProfitLossPercLE) && (DailyProfitLossPerc <= sets.doubleDailyProfitLossPercLE))
             CheckOneCondition(sets.doubleDailyProfitLossPercLE, sets.boolDailyProfitLossPercLE, "Daily profit/loss less or equal to " + DoubleToString(sets.doubleDailyProfitLossPercLE, 2) + "% of balance");
     }
 
     // Number of positions is greater or equal to <value>.
-    if ((!DisableNumberOfPositionsGE) && (market >= sets.intNumberOfPositionsGE))
+    if ((!DisableNumberOfPositionsGE) && (NumberOfMarketOrders >= sets.intNumberOfPositionsGE))
         CheckOneCondition(sets.intNumberOfPositionsGE, sets.boolNumberOfPositionsGE, "Number of positions greater or equal to " + IntegerToString(sets.intNumberOfPositionsGE));
 
     // Number of orders is greater or equal to <value>.
-    if ((!DisableNumberOfOrdersGE) && (pending >= sets.intNumberOfOrdersGE))
+    if ((!DisableNumberOfOrdersGE) && (NumberOfPendingOrders >= sets.intNumberOfOrdersGE))
         CheckOneCondition(sets.intNumberOfOrdersGE, sets.boolNumberOfOrdersGE, "Number of pending orders greater or equal to " + IntegerToString(sets.intNumberOfOrdersGE));
 
     // Number of positions is greater or equal to <value>.
-    if ((!DisableNumberOfPositionsLE) && (market <= sets.intNumberOfPositionsLE))
+    if ((!DisableNumberOfPositionsLE) && (NumberOfMarketOrders <= sets.intNumberOfPositionsLE))
         CheckOneCondition(sets.intNumberOfPositionsLE, sets.boolNumberOfPositionsLE, "Number of positions less or equal to " + IntegerToString(sets.intNumberOfPositionsLE));
 
     // Number of orders is greater or equal to <value>.
-    if ((!DisableNumberOfOrdersLE) && (pending <= sets.intNumberOfOrdersLE))
+    if ((!DisableNumberOfOrdersLE) && (NumberOfPendingOrders <= sets.intNumberOfOrdersLE))
         CheckOneCondition(sets.intNumberOfOrdersLE, sets.boolNumberOfOrdersLE, "Number of pending orders less or equal to " + IntegerToString(sets.intNumberOfOrdersLE));
+
+    // Balance fell to <Actual number> <currency ISO code>.
+    if ((!DisableBalanceLE) && (AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds <= sets.doubleBalanceLE))
+        CheckOneCondition(sets.doubleBalanceLE, sets.boolBalanceLE, "Balance fell to " + DoubleToString(sets.doubleBalanceLE, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
+
+    // Balance rose to <Actual number> <currency ISO code>.
+    if ((!DisableBalanceGE) && (AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds >= sets.doubleBalanceGE))
+        CheckOneCondition(sets.doubleBalanceGE, sets.boolBalanceGE, "Balance rose to " + DoubleToString(sets.doubleBalanceGE, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
+
+    // Signal received on channel <N>.
+    if ((!DisableListenToSignal) && (GlobalVariableCheck("AP_Signal" + IntegerToString(sets.intListenToSignal))) && (GlobalVariableGet("AP_Signal" + IntegerToString(sets.intListenToSignal)) > 0))
+    {
+        CheckOneCondition(sets.intListenToSignal, sets.boolListenToSignal, "Signal received on channel " + IntegerToString(sets.intListenToSignal));
+        GlobalVariableDel("AP_Signal" + IntegerToString(sets.intListenToSignal));
+    }
 
     // Timeout by timer.
     if ((sets.UseTimer) && (sets.TimeLeft == "00:00") && ((!DoNotDisableTimer) || (TimeLocal() - sets.dtTimerLastTriggerTime > 60))) // If DoNotDisableTimer == true, at least one minute should pass from the last trigger.
@@ -5211,7 +5663,7 @@ void CAccountProtector::CheckAllConditions()
         SaveSettingsOnDisk();
     }
 
-    if (!AtLeastOneConditionTriggered) ConditionTimer = 0; // Reset condition delay timer if no condition has been met.
+    if (NumberConditionsTriggered < TotalConditionsNumber) ConditionTimer = 0; // Reset condition delay timer if no condition has been met.
 }
 
 // Performs actions set by user.
@@ -5241,6 +5693,19 @@ void CAccountProtector::Trigger_Actions(string title)
     if (sets.CloseAllOtherCharts) WasCloseAllOtherCharts = true;
     else WasCloseAllOtherCharts = false;
 
+    if (sets.EmitSignal) WasEmitSignal = true;
+    else WasEmitSignal = false;
+
+    // Close all other charts.
+    if (sets.CloseAllOtherCharts)
+    {
+        if (!DoNotDisableActions) sets.CloseAllOtherCharts = false;
+        Logging("ACTION IS TAKEN: Close all other charts.");
+        CloseAllOtherCharts();
+        sets.Triggered = true;
+        sets.TriggeredTime = TimeToString(TimeLocal(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
+    }
+
     // Close all positions.
     if (sets.ClosePos)
     {
@@ -5268,7 +5733,6 @@ void CAccountProtector::Trigger_Actions(string title)
         if (!DoNotDisableActions) sets.DisAuto = false;
         Logging("ACTION IS TAKEN: Disable autotrading.");
         // Toggle Expert Advisor button.
-        //if (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) PostMessageA(GetForegroundWindow(), WM_COMMAND, 32851, 0);
         if (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) PostMessageA(GetAncestor((int)ChartGetInteger(0, CHART_WINDOW_HANDLE), 2/*GA_ROOT*/), WM_COMMAND, 32851, 0);
         sets.Triggered = true;
         sets.TriggeredTime = TimeToString(TimeLocal(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
@@ -5280,7 +5744,7 @@ void CAccountProtector::Trigger_Actions(string title)
     {
         if (!DoNotDisableActions) sets.SendMails = false;
         Logging("ACTION IS TAKEN: Send email.");
-        PrepareSubjectBody(subject, body, title, TimeCurrent(), QuantityClosedPositions, QuantityDeletedPendingOrders, WasAutoTradingDisabled, WasNotificationSent, false, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots, WasCloseAllOtherCharts);
+        PrepareSubjectBody(subject, body, title, TimeCurrent(), QuantityClosedPositions, QuantityDeletedPendingOrders, WasAutoTradingDisabled, WasNotificationSent, false, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots, WasCloseAllOtherCharts, WasEmitSignal);
         SendMailFunction(subject, body);
         sets.Triggered = true;
         sets.TriggeredTime = TimeToString(TimeLocal(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
@@ -5291,7 +5755,7 @@ void CAccountProtector::Trigger_Actions(string title)
     {
         if (!DoNotDisableActions) sets.SendNotif = false;
         Logging("ACTION IS TAKEN: Send push notifications.");
-        PrepareSubjectBody(subject, body, title, TimeCurrent(), QuantityClosedPositions, QuantityDeletedPendingOrders, WasAutoTradingDisabled, false, WasMailSent, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots, true);
+        PrepareSubjectBody(subject, body, title, TimeCurrent(), QuantityClosedPositions, QuantityDeletedPendingOrders, WasAutoTradingDisabled, false, WasMailSent, WasPlatformClosed, WasAutoTradingEnabled, WasRecapturedSnapshots, WasEmitSignal, true);
         SendNotificationFunction(subject, body);
         sets.Triggered = true;
         sets.TriggeredTime = TimeToString(TimeLocal(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
@@ -5327,16 +5791,16 @@ void CAccountProtector::Trigger_Actions(string title)
         sets.TriggeredTime = TimeToString(TimeLocal(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
     }
 
-    // Close all other charts.
-    if (sets.CloseAllOtherCharts)
+    // Emit a signal.
+    if (sets.EmitSignal)
     {
-        if (!DoNotDisableActions) sets.CloseAllOtherCharts = false;
-        Logging("ACTION IS TAKEN: Close all other charts.");
-        CloseAllOtherCharts();
+        if (!DoNotDisableActions) sets.EmitSignal = false;
+        Logging("ACTION IS TAKEN: Emit signal on channel " + IntegerToString(sets.SignalChannel) + ".");
+        GlobalVariableSet("AP_Signal" + IntegerToString(sets.SignalChannel), 1);
         sets.Triggered = true;
         sets.TriggeredTime = TimeToString(TimeLocal(), TIME_DATE | TIME_MINUTES | TIME_SECONDS);
     }
-    
+
     SaveSettingsOnDisk();
 }
 
@@ -5345,7 +5809,7 @@ void CAccountProtector::Logging(string message)
 {
     if (StringLen(LogFileName) > 0)
     {
-        string filename = LogFileName + ".log";
+        string filename = LogFileName;
         if (LogFile == INVALID_HANDLE) LogFile = FileOpen(filename, FILE_CSV | FILE_READ | FILE_WRITE, ' ');
         if (LogFile == INVALID_HANDLE) Alert("Cannot open file for logging: ", filename, ".");
         else if (FileSeek(LogFile, 0, SEEK_END))
