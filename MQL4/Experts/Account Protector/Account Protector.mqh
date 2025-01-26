@@ -1331,8 +1331,11 @@ void CAccountProtector::CalculateDailyProfitLossAndStartingBalance()
 
             if ((OrderType() == OP_BUY) || (OrderType() == OP_SELL))
             {
-                if (OrderType() == OP_BUY) FloatingProfitPoints += (int)MathRound((MarketInfo(OrderSymbol(), MODE_BID) - OrderOpenPrice()) / MarketInfo(OrderSymbol(), MODE_POINT));
-                else if (OrderType() == OP_SELL) FloatingProfitPoints += (int)MathRound((OrderOpenPrice() - MarketInfo(OrderSymbol(), MODE_ASK)) / MarketInfo(OrderSymbol(), MODE_POINT));
+                if (MarketInfo(OrderSymbol(), MODE_POINT) != 0)
+                {
+                    if (OrderType() == OP_BUY) FloatingProfitPoints += (int)MathRound((MarketInfo(OrderSymbol(), MODE_BID) - OrderOpenPrice()) / MarketInfo(OrderSymbol(), MODE_POINT));
+                    else if (OrderType() == OP_SELL) FloatingProfitPoints += (int)MathRound((OrderOpenPrice() - MarketInfo(OrderSymbol(), MODE_ASK)) / MarketInfo(OrderSymbol(), MODE_POINT));
+                }
                 NumberOfMarketOrders++;
             }
             else if ((OrderType() == OP_BUYSTOP) || (OrderType() == OP_SELLSTOP) || (OrderType() == OP_BUYLIMIT) || (OrderType() == OP_SELLLIMIT)) NumberOfPendingOrders++;
@@ -1377,6 +1380,7 @@ void CAccountProtector::CalculateDailyProfitLossAndStartingBalance()
                 realized_daily_profit_loss_units += OrderProfit();
                 if (sets.CountCommSwaps) realized_daily_profit_loss_units += OrderCommission() + OrderSwap();
 
+                if (MarketInfo(OrderSymbol(), MODE_POINT) == 0) break; // Avoid division by zero.
                 if (OrderType() == OP_BUY) realized_daily_profit_loss_points += (int)MathRound((OrderClosePrice() - OrderOpenPrice()) / MarketInfo(OrderSymbol(), MODE_POINT));
                 else if (OrderType() == OP_SELL) realized_daily_profit_loss_points += (int)MathRound((OrderOpenPrice() - OrderClosePrice()) / MarketInfo(OrderSymbol(), MODE_POINT));
                 break; // Order already processed - no point to process this order with other magic numbers.

@@ -1345,8 +1345,11 @@ void CAccountProtector::CalculateDailyProfitLossAndStartingBalance()
             FloatingProfit += PositionGetDouble(POSITION_PROFIT);
             if (sets.CountCommSwaps) FloatingProfit += HistoryDealGetDouble(ticket, DEAL_COMMISSION) + PositionGetDouble(POSITION_SWAP);
 
-            if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) FloatingProfitPoints += (int)MathRound((SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT));
-            else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL) FloatingProfitPoints += (int)MathRound((PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT));
+            if (SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT) != 0)
+            {
+                if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) FloatingProfitPoints += (int)MathRound((SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT));
+                else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL) FloatingProfitPoints += (int)MathRound((PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_ASK)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT));
+            }
             NumberOfMarketOrders++;
             break; // Position already processed - no point to process this order with other magic numbers.
         }
@@ -1452,8 +1455,11 @@ void CAccountProtector::CalculateDailyProfitLossAndStartingBalance()
                     double deal_entry_price = HistoryDealGetDouble(entry_deal_ticket, DEAL_PRICE);
 
                     // This is a very crude and imprecise method when used on a Netting account, but calculating points profit/loss across uninformly sized positions is crazy to start with.
-                    if (HistoryDealGetInteger(entry_deal_ticket, DEAL_TYPE) == DEAL_TYPE_BUY) realized_daily_profit_loss_points += (int)MathRound((exit_deal_exit_prices[i] - deal_entry_price) / SymbolInfoDouble(HistoryDealGetString(entry_deal_ticket, DEAL_SYMBOL), SYMBOL_POINT));
-                    else if (HistoryDealGetInteger(entry_deal_ticket, DEAL_TYPE) == DEAL_TYPE_SELL) realized_daily_profit_loss_points += (int)MathRound((deal_entry_price - exit_deal_exit_prices[i]) / SymbolInfoDouble(HistoryDealGetString(entry_deal_ticket, DEAL_SYMBOL), SYMBOL_POINT));
+                    if (SymbolInfoDouble(HistoryDealGetString(entry_deal_ticket, DEAL_SYMBOL), SYMBOL_POINT) != 0)
+                    {
+                        if (HistoryDealGetInteger(entry_deal_ticket, DEAL_TYPE) == DEAL_TYPE_BUY) realized_daily_profit_loss_points += (int)MathRound((exit_deal_exit_prices[i] - deal_entry_price) / SymbolInfoDouble(HistoryDealGetString(entry_deal_ticket, DEAL_SYMBOL), SYMBOL_POINT));
+                        else if (HistoryDealGetInteger(entry_deal_ticket, DEAL_TYPE) == DEAL_TYPE_SELL) realized_daily_profit_loss_points += (int)MathRound((deal_entry_price - exit_deal_exit_prices[i]) / SymbolInfoDouble(HistoryDealGetString(entry_deal_ticket, DEAL_SYMBOL), SYMBOL_POINT));
+                    }
                     break; // Move on to the next exit deal.
                 }
             }
@@ -1467,8 +1473,6 @@ void CAccountProtector::CalculateDailyProfitLossAndStartingBalance()
             DailyProfitLossPoints += FloatingProfitPoints;
         }
         // Percentage of balance at the start of the day calculated by subtracting the current daily profit from the current balance.
-//Print("daily_profit_loss_units = ", daily_profit_loss_units);
-//Print("prev balance = ", AccountInfoDouble(ACCOUNT_BALANCE) - realized_daily_profit_loss_units);
         DailyStartingBalance = AccountInfoDouble(ACCOUNT_BALANCE) - realized_daily_profit_loss_units;
         if ((!DisableDailyProfitLossPercGE) || (!DisableDailyProfitLossPercLE))
         {
@@ -5312,7 +5316,7 @@ void CAccountProtector::Logging_Condition_Is_Met()
                 }
                 ArrayResize(PositionsByProfit, market, 100); // Reserve extra physical memory to increase the resizing speed.
                 if ((CloseFirst != ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST) && (CloseFirst != ENUM_CLOSE_TRADES_NEAREST_FIRST)) PositionsByProfit[market - 1][0] = position_floating_profit; // Normal profit.
-                else PositionsByProfit[market - 1][0] = MathAbs(PositionGetDouble(POSITION_PRICE_OPEN) - PositionGetDouble(POSITION_PRICE_CURRENT)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT); 
+                else if (SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT) != 0) PositionsByProfit[market - 1][0] = MathAbs(PositionGetDouble(POSITION_PRICE_OPEN) - PositionGetDouble(POSITION_PRICE_CURRENT)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT); 
                 PositionsByProfit[market - 1][1] = (double)ticket;
                 TotalVolume += PositionGetDouble(POSITION_VOLUME); // Used to close trades, so no need to filter by P/L.
             }
