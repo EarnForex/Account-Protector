@@ -5,8 +5,8 @@
 //+------------------------------------------------------------------+
 #property copyright "EarnForex.com"
 #property link      "https://www.earnforex.com/metatrader-expert-advisors/Account-Protector/"
-#property version   "1.121"
-string    Version = "1.121";
+#property version   "1.13"
+string    Version = "1.13";
 #property strict
 
 #property description "Protects account balance by applying given actions when set conditions trigger."

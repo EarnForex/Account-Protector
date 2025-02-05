@@ -3442,7 +3442,7 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, sets.Timer);
     FileWrite(fh, "TimeLeft");
     FileWrite(fh, sets.TimeLeft);
-    FileWrite(fh, "TimeType");
+    FileWrite(fh, "intTimeType");
     FileWrite(fh, IntegerToString(sets.intTimeType));
     FileWrite(fh, "dtTimerLastTriggerTime");
     FileWrite(fh, IntegerToString(sets.dtTimerLastTriggerTime));
@@ -5272,7 +5272,7 @@ void CAccountProtector::Logging_Current_Settings()
 // Logs pre-condition values into the .log file and record positions into array.
 void CAccountProtector::Logging_Condition_Is_Met()
 {
-    int i, market = 0, pending = 0;
+    int i, market = 0, pending = 0, market_pl = 0;
     double floating_profit = 0;
     ulong ticket;
     ClosedVolume = 0;
@@ -5314,10 +5314,11 @@ void CAccountProtector::Logging_Condition_Is_Met()
                     floating_profit += position_floating_profit;
                     market++;
                 }
-                ArrayResize(PositionsByProfit, market, 100); // Reserve extra physical memory to increase the resizing speed.
-                if ((CloseFirst != ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST) && (CloseFirst != ENUM_CLOSE_TRADES_NEAREST_FIRST)) PositionsByProfit[market - 1][0] = position_floating_profit; // Normal profit.
-                else if (SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT) != 0) PositionsByProfit[market - 1][0] = MathAbs(PositionGetDouble(POSITION_PRICE_OPEN) - PositionGetDouble(POSITION_PRICE_CURRENT)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT); 
-                PositionsByProfit[market - 1][1] = (double)ticket;
+                market_pl++;
+                ArrayResize(PositionsByProfit, market_pl, 100); // Reserve extra physical memory to increase the resizing speed.
+                if ((CloseFirst != ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST) && (CloseFirst != ENUM_CLOSE_TRADES_NEAREST_FIRST)) PositionsByProfit[market_pl - 1][0] = position_floating_profit; // Normal profit.
+                else if (SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT) != 0) PositionsByProfit[market_pl - 1][0] = MathAbs(PositionGetDouble(POSITION_PRICE_OPEN) - PositionGetDouble(POSITION_PRICE_CURRENT)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT); 
+                PositionsByProfit[market_pl - 1][1] = (double)ticket;
                 TotalVolume += PositionGetDouble(POSITION_VOLUME); // Used to close trades, so no need to filter by P/L.
             }
             break; // Order already processed - no point to process this order with other magic numbers.

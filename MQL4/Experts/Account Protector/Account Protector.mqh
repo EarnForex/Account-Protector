@@ -3330,7 +3330,7 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, sets.Timer);
     FileWrite(fh, "TimeLeft");
     FileWrite(fh, sets.TimeLeft);
-    FileWrite(fh, "TimeType");
+    FileWrite(fh, "intTimeType");
     FileWrite(fh, IntegerToString(sets.intTimeType));
     FileWrite(fh, "dtTimerLastTriggerTime");
     FileWrite(fh, IntegerToString(sets.dtTimerLastTriggerTime));
@@ -5097,7 +5097,7 @@ void CAccountProtector::Logging_Current_Settings()
 // Condition-side values are calculated with P/L filter on. Action-side position array is set up without P/L filtering.
 void CAccountProtector::Logging_Condition_Is_Met()
 {
-    int i, market = 0, pending = 0;
+    int i, market = 0, pending = 0, market_pl = 0;
     double floating_profit = 0;
     ClosedVolume = 0;
     TotalVolume = 0;
@@ -5124,10 +5124,11 @@ void CAccountProtector::Logging_Condition_Is_Met()
                         floating_profit += order_floating_profit;
                         market++;
                     }
-                    ArrayResize(PositionsByProfit, market, 100); // Reserve extra physical memory to increase the resizing speed.
-                    if ((CloseFirst != ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST) && (CloseFirst != ENUM_CLOSE_TRADES_NEAREST_FIRST)) PositionsByProfit[market - 1][0] = order_floating_profit; // Normal profit.
-                    else PositionsByProfit[market - 1][0] = MathAbs(OrderOpenPrice() - OrderClosePrice()) / SymbolInfoDouble(OrderSymbol(), SYMBOL_POINT); 
-                    PositionsByProfit[market - 1][1] = OrderTicket();
+                    market_pl++;
+                    ArrayResize(PositionsByProfit, market_pl, 100); // Reserve extra physical memory to increase the resizing speed.
+                    if ((CloseFirst != ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST) && (CloseFirst != ENUM_CLOSE_TRADES_NEAREST_FIRST)) PositionsByProfit[market_pl - 1][0] = order_floating_profit; // Normal profit.
+                    else if (SymbolInfoDouble(OrderSymbol(), SYMBOL_POINT) != 0) PositionsByProfit[market_pl - 1][0] = MathAbs(OrderOpenPrice() - OrderClosePrice()) / SymbolInfoDouble(OrderSymbol(), SYMBOL_POINT);
+                    PositionsByProfit[market_pl - 1][1] = OrderTicket();
                     TotalVolume += OrderLots(); // Used to close trades, so no need to filter by P/L.
                 }
                 else if ((OrderType() == OP_BUYSTOP) || (OrderType() == OP_SELLSTOP) || (OrderType() == OP_BUYLIMIT) || (OrderType() == OP_SELLLIMIT)) pending++;
