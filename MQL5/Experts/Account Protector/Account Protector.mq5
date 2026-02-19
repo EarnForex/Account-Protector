@@ -1,12 +1,12 @@
 ﻿//+------------------------------------------------------------------+
 //|                                            Account Protector.mq5 |
-//|                             Copyright © 2017-2025, EarnForex.com |
+//|                             Copyright © 2017-2026, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #property copyright "EarnForex.com"
 #property link      "https://www.earnforex.com/metatrader-expert-advisors/Account-Protector/"
-#property version   "1.13"
-string    Version = "1.13";
+#property version   "1.14"
+string    Version = "1.14";
 #property strict
 
 #property description "Protects account balance by applying given actions when set conditions trigger."
@@ -23,6 +23,7 @@ input bool DoNotDisableEquityTS = false; // DoNotDisableEquityTS: Don't disable 
 input bool DoNotDisableTimer = false; // DoNotDisableTimer: Don't disable timer on trigger?
 input int ConditionDelay = 0; // ConditionDelay: How long should condition be active to trigger?
 input bool CountFloatingInDailyPL = true; // CountFloatingInDailyPL: Count floating P/L in daily P/L?
+input bool EnableAutoSwitchOnPeriod = false; // Enable auto switch ON period
 input group "Conditions"
 input bool DisableFloatLossRisePerc = false; // Disable floating loss rises % condition.
 input bool DisableFloatLossFallPerc = true; // Disable floating loss falls % condition.
@@ -84,16 +85,38 @@ input bool CloseOtherChartsOnEmergencyButton = false; // Close other charts on e
 input string LogFileName = "ap_log.txt"; // Log file name
 input string SettingsFileName = ""; // Settings file: Load custom panel settings from \Files\ folder.
 input bool Silent = false; // Silent: No log output to the Experts tab.
+input bool DarkMode = false; // DarkMode: Enable dark mode for a less bright panel.
+input bool AutoDetectDarkMode = true; // AutoDetectDarkMode: Dark/light mode will be autodetected.
+input bool IncludeAccountCredit = true; // IncludeAccountCredit: Account credit is added to balance.
 
 CAccountProtector ExtDialog;
 
 int DeinitializationReason = -1;
+bool DetectedColorMode;
 
 //+------------------------------------------------------------------+
 //| Initialization function                                          |
 //+------------------------------------------------------------------+
 int OnInit()
 {
+    if (AutoDetectDarkMode) DetectedColorMode = DetectDarkMode();
+    else DetectedColorMode = DarkMode;
+    
+    if (DetectedColorMode)
+    {
+        CONTROLS_EDIT_COLOR_ENABLE  = DARKMODE_EDIT_BG_COLOR;
+        CONTROLS_EDIT_COLOR_DISABLE = 0x999999;
+        CONTROLS_BUTTON_COLOR_ENABLE  = DARKMODE_BUTTON_BG_COLOR;
+        CONTROLS_BUTTON_COLOR_DISABLE = 0x919999;
+    }
+    else
+    {
+        CONTROLS_EDIT_COLOR_ENABLE  = C'255,255,255';
+        CONTROLS_EDIT_COLOR_DISABLE = C'221,221,211';
+        CONTROLS_BUTTON_COLOR_ENABLE  = C'200,200,200';
+        CONTROLS_BUTTON_COLOR_DISABLE = C'224,224,224';
+    }
+
     if (DeinitializationReason == REASON_CHARTCHANGE)
     {
         EventSetTimer(1);
@@ -108,6 +131,7 @@ int OnInit()
     }
 
     ExtDialog.AccountCurrencyDigits = (int)AccountInfoInteger(ACCOUNT_CURRENCY_DIGITS);
+    ExtDialog.InitVariables();
 
     if (!ExtDialog.LoadSettingsFromDisk())
     {
@@ -234,7 +258,6 @@ int OnInit()
         sets.doubleClosePercentage = 100;
         sets.CloseWhichPositions = All;
         sets.DeletePend = true;
-        sets.DisAuto = true;
         sets.SendMails = false;
         sets.SendNotif = false;
         sets.ClosePlatform = false;
@@ -266,6 +289,7 @@ int OnInit()
         }
         ExtDialog.Logging("Account Margin Call Level = " + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_SO_CALL), decimal_places) + units + ", Account Margin Stopout Level = " + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_SO_SO), decimal_places) + units);
         ExtDialog.Logging("Enable Emergency Button = " + IntegerToString(EnableEmergencyButton));
+        ExtDialog.Logging("EnableAutoSwitchOnPeriod = " + IntegerToString(EnableAutoSwitchOnPeriod));
         ExtDialog.Logging("DelayOrderClose = " + IntegerToString(DelayOrderClose));
         ExtDialog.Logging("UseTotalVolume = " + IntegerToString(UseTotalVolume));
         ExtDialog.Logging("AdditionalBalance = " + DoubleToString(AdditionalFunds, ExtDialog.AccountCurrencyDigits));
@@ -274,6 +298,8 @@ int OnInit()
         sets.Triggered = false;
         sets.TriggeredTime = "";
         sets.TimerDayOfWeek = Any;
+        sets.boolAutoSwitchOnPeriod = false;
+        sets.AutoSwitchOnPeriod = "";
     }
 
     if ((!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) || (!MQLInfoInteger(MQL_TRADE_ALLOWED)))
@@ -303,6 +329,60 @@ int OnInit()
     ExtDialog.RefreshValues();
 
     EventSetTimer(1);
+
+    if (DetectedColorMode)
+    {
+        int total = ObjectsTotal(ChartID());
+        for (int i = 0; i < total; i++)
+        {
+            string obj_name = ObjectName(ChartID(), i);
+            if (StringSubstr(obj_name, 0, StringLen(ExtDialog.Name())) != ExtDialog.Name()) continue; // Skip non-panel objects.
+            if (obj_name == ExtDialog.Name() + "Back")
+            {
+                
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BGCOLOR, DARKMODE_BG_DARK_COLOR);
+            }
+            if (obj_name == ExtDialog.Name() + "Caption")
+            {
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BGCOLOR, DARKMODE_BG_DARK_COLOR);
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_COLOR, DARKMODE_CONTROL_BRODER_COLOR);
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BORDER_COLOR, DARKMODE_BG_DARK_COLOR);
+            }
+            else if (obj_name == ExtDialog.Name() + "ClientBack")
+            {
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_COLOR, DARKMODE_MAIN_AREA_BORDER_COLOR);
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BGCOLOR, DARKMODE_MAIN_AREA_BG_COLOR);
+            }
+            else if (StringSubstr(obj_name, 0, StringLen(ExtDialog.Name() + "m_Edt")) == ExtDialog.Name() + "m_Edt")
+            {
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BGCOLOR, DARKMODE_EDIT_BG_COLOR);
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BORDER_COLOR, DARKMODE_CONTROL_BRODER_COLOR);
+            }
+            else if (StringSubstr(obj_name, 0, StringLen(ExtDialog.Name() + "m_Btn")) == ExtDialog.Name() + "m_Btn")
+            {
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BGCOLOR, DARKMODE_BUTTON_BG_COLOR);
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BORDER_COLOR, DARKMODE_CONTROL_BRODER_COLOR);
+            }
+            else if (StringSubstr(obj_name, 0, StringLen(ExtDialog.Name() + "m_Chk")) == ExtDialog.Name() + "m_Chk")
+            {
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_COLOR, DARKMODE_TEXT_COLOR);
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BGCOLOR, DARKMODE_MAIN_AREA_BG_COLOR);
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BORDER_COLOR, DARKMODE_MAIN_AREA_BG_COLOR);
+            }
+            else if (StringSubstr(obj_name, 0, StringLen(ExtDialog.Name() + "m_Rgp")) == ExtDialog.Name() + "m_Rgp")
+            {
+                if (ObjectGetInteger(ChartID(), obj_name, OBJPROP_TYPE) == OBJ_RECTANGLE_LABEL) ObjectSetInteger(ChartID(), obj_name, OBJPROP_COLOR, DARKMODE_MAIN_AREA_BG_COLOR);
+                else ObjectSetInteger(ChartID(), obj_name, OBJPROP_COLOR, DARKMODE_TEXT_COLOR);
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BGCOLOR, DARKMODE_MAIN_AREA_BG_COLOR);
+                ObjectSetInteger(ChartID(), obj_name, OBJPROP_BORDER_COLOR, DARKMODE_MAIN_AREA_BG_COLOR);
+            }
+            else
+            {
+                if (obj_name == ExtDialog.Name() + "m_LblURL") ObjectSetInteger(ChartID(), obj_name, OBJPROP_COLOR, 0x224400);
+                else if (obj_name != ExtDialog.Name() + "m_LblOnOff") ObjectSetInteger(ChartID(), obj_name, OBJPROP_COLOR, DARKMODE_TEXT_COLOR); // Avoid changing On/Off label color.
+            }
+        }
+    }
 
     return INIT_SUCCEEDED;
 }
@@ -366,6 +446,7 @@ void OnChartEvent(const int id,
 void OnTick()
 {
     ExtDialog.RefreshValues();
+    ExtDialog.CheckAutoSwitchOnPeriod();
     if (!sets.OnOff) return;
     ExtDialog.Trailing();
     ExtDialog.EquityTrailing();
@@ -380,11 +461,25 @@ void OnTick()
 void OnTimer()
 {
     ExtDialog.RefreshValues();
+    ExtDialog.CheckAutoSwitchOnPeriod();
     if (!sets.OnOff) return;
     ExtDialog.Trailing();
     ExtDialog.EquityTrailing();
     ExtDialog.MoveToBreakEven();
     ExtDialog.CheckAllConditions();
     ChartRedraw();
+}
+
+// true = dark mode
+// false = light mode
+bool DetectDarkMode()
+{
+    string theme = TerminalInfoString(TERMINAL_COLORTHEME_NAME);
+    if (theme == "Dark") return true;
+    if (theme == "Light") return false;
+    // "System":
+    color window_color = (color)TerminalInfoInteger(THEME_COLOR_WINDOW);
+    if (window_color == clrWhite) return false;
+    return true;
 }
 //+------------------------------------------------------------------+

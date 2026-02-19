@@ -1,6 +1,6 @@
 ﻿//+------------------------------------------------------------------+
 //|                                            Account Protector.mqh |
-//|                             Copyright © 2017-2025, EarnForex.com |
+//|                             Copyright © 2017-2026, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #include "Defines.mqh"
@@ -20,9 +20,9 @@ private:
     // Main Tab - Labels
     CLabel          m_LblOnOff, m_LblStatus, m_LblSpread, m_LblTimeLeft, m_LblSnapEquity, m_LblSnapMargin, m_LblURL, m_LblCurrentEquityStopLoss, m_LblDayOfWeek;
     // Main Tab - CheckBoxes
-    CCheckBox       m_ChkCountCommSwaps, m_ChkUseTimer, m_ChkTrailingStart, m_ChkTrailingStep, m_ChkBreakEven, m_ChkBreakEvenExtra, m_ChkEquityTrailingStop;
+    CCheckBox       m_ChkCountCommSwaps, m_ChkUseTimer, m_ChkTrailingStart, m_ChkTrailingStep, m_ChkBreakEven, m_ChkBreakEvenExtra, m_ChkEquityTrailingStop, m_ChkAutoSwitchOnPeriod;
     // Main Tab - Edits
-    CEdit           m_EdtTimer, m_EdtTrailingStart, m_EdtTrailingStep, m_EdtBreakEven, m_EdtBreakEvenExtra, m_EdtEquityTrailingStop;
+    CEdit           m_EdtTimer, m_EdtTrailingStart, m_EdtTrailingStep, m_EdtBreakEven, m_EdtBreakEvenExtra, m_EdtEquityTrailingStop, m_EdtAutoSwitchOnPeriod;
     // MainTab - Radio Group
     CRadioGroup     m_RgpTimeType;
     // Main Tab - Buttons
@@ -79,7 +79,7 @@ private:
     double          m_DPIScale;
     bool            NoPanelMaximization; // Crutch variable to prevent panel maximization when Maximize() is called at the indicator's initialization.
     CArrayLong     *PartiallyClosedOrders; // Stores order tickets that have been partially closed by Eliminate_Orders().
-    double          PositionsByProfit[][2]; // Stores position (order) ticket and its floating profit/loss. When CloseMostDistantFirst == true, the profit is replaced with absolute distance. Gets filled and sorted when some condition is met and actions are about to get triggered.
+    double          PositionsByProfit[][2]; // Stores position (order) ticket and its floating profit/loss. When CloseFirst == Most Distant or Nearest, the profit is replaced with absolute distance. When CloseFirst == FIFO/LIFO, it's replaced by date/time. When Close Gets filled and sorted when some condition is met and actions are about to get triggered.
     ENUM_CONDITIONS TriggeredCondition; // Checked for position array sorting (when optimal) and for partial position closure cancellation when UseTotalVolume is enabled.
     double          ClosedVolume; // How much of the volume has already been closed - for partial closure when UseTotalVolume == true.
     double          TotalVolume; // Store the total volume of filtered trades.
@@ -96,6 +96,8 @@ private:
     int             FloatingProfitPoints; // Calculated in one method, used in another one.
     int             NumberOfMarketOrders; // Calculated in one method, used in another one.
     int             NumberOfPendingOrders; // Calculated in one method, used in another one.
+    string          CheckboxOnFile, CheckboxOffFile;
+    string          RadiogroupOnFile, RadiogroupOffFile;
 
 public:
     CAccountProtector(void);
@@ -122,6 +124,8 @@ public:
     void            Logging_Current_Settings();
     void            HideShowMaximize(bool max);
     void            SetFileName(string file_name) {m_FileName = file_name;}
+    void            InitVariables();
+    void            CheckAutoSwitchOnPeriod();
 
     // Remember the panel's location to have the same location for minimized and maximized states.
     int             remember_top, remember_left;
@@ -306,6 +310,8 @@ private:
     void OnClickBtnEmergency();
     void OnClickBtnDayOfWeek();
     void OnClickBtnPositionStatus();
+    void OnChangeChkAutoSwitchOnPeriod();
+    void OnEndEditAutoSwitchOnPeriod();
 
     // Supplementary functions:
     void CheckboxChangeMain(bool& SettingsCheckboxValue, CCheckBox& CheckBox);
@@ -322,6 +328,7 @@ private:
     void UpdateEquitySnapshotPanelFields();
     void UpdateMarginSnapshotPanelFields();
     void LoadGlobalSnapshots();
+    bool IsWithinAutoSwitchPeriod();
 
     // Circumvent the bug with ChartEvent() poor handling hidden controls.
     void HideControl(CWnd& obj);
@@ -459,6 +466,8 @@ ON_EVENT(ON_END_EDIT, m_EdtListenToSignal, OnEndEditListenToSignal)
 ON_EVENT(ON_END_EDIT, m_EdtClosePercentage, OnEndEditClosePercentage)
 ON_EVENT(ON_END_EDIT, m_EdtSignalChannel, OnEndEditSignalChannel)
 ON_EVENT(ON_CLICK, m_BtnEmergency, OnClickBtnEmergency)
+ON_EVENT(ON_CHANGE, m_ChkAutoSwitchOnPeriod, OnChangeChkAutoSwitchOnPeriod)
+ON_EVENT(ON_END_EDIT, m_EdtAutoSwitchOnPeriod, OnEndEditAutoSwitchOnPeriod)
 EVENT_MAP_END(CAppDialog)
 
 //+-------------------+
@@ -487,6 +496,16 @@ CAccountProtector::CAccountProtector()
     PartiallyClosedOrders = new CArrayLong();
     TriggeredCondition = Other_condition;
     LastConditionsTriggered = 0;
+    InitVariables();
+}
+
+// Initialize variables that need to be reset outside class constructor.
+void CAccountProtector::InitVariables()
+{
+    CheckboxOnFile = "";
+    CheckboxOffFile = "";
+    RadiogroupOnFile = "";
+    RadiogroupOffFile = "";
 }
 
 //+--------+
@@ -512,6 +531,20 @@ bool CAccountProtector::CheckBoxCreate(CCheckBox &Chk, int X1, int Y1, int X2, i
     if (!Chk.Text(Text))                                                        return false;
     ObjectSetString(ChartID(), m_name + Name + "Label", OBJPROP_TOOLTIP, Tooltip);
     ObjectSetString(ChartID(), m_name + Name + "Button", OBJPROP_TOOLTIP, Tooltip);
+
+    if (CheckboxOnFile != "")
+    {
+        bool success = ObjectSetString(ChartID(), m_name + Name + "Button", OBJPROP_BMPFILE, 0, "::Images\\" + CheckboxOnFile);
+        if (!success)
+        {
+            PrintFormat("Failed to load dark checbkox ON state bitmap: %s. Error code: %d.", "::Images\\" + CheckboxOnFile, GetLastError()); 
+        }
+        success = ObjectSetString(ChartID(), m_name + Name + "Button", OBJPROP_BMPFILE, 1, "::Images\\" + CheckboxOffFile);
+        if (!success)
+        {
+            PrintFormat("Failed to load dark checbkox OFF state bitmap: %s. Error code: %d.", "::Images\\" + CheckboxOffFile, GetLastError()); 
+        }
+    }
 
     return true;
 }
@@ -556,6 +589,19 @@ bool CAccountProtector::RadioGroupCreate(CRadioGroup &Rgp, int X1, int Y1, int X
         if (!Rgp.AddItem(Text[i], i))                                                            return false;
         ObjectSetString(ChartID(), m_name + Name + "Item" + IntegerToString(i) + "Label", OBJPROP_TOOLTIP, Tooltip);
         ObjectSetString(ChartID(), m_name + Name + "Item" + IntegerToString(i) + "Button", OBJPROP_TOOLTIP, Tooltip);
+        if (RadiogroupOnFile != "")
+        {
+            bool success = ObjectSetString(ChartID(), m_name + Name + "Item" + IntegerToString(i) + "Button", OBJPROP_BMPFILE, 0, "::Images\\" + RadiogroupOnFile);
+            if (!success)
+            {
+                PrintFormat("Failed to load dark radiogroup ON state bitmap: %s. Error code: %d.", "::Images\\" + RadiogroupOnFile, GetLastError()); 
+            }
+            success = ObjectSetString(ChartID(), m_name + Name + "Item" + IntegerToString(i) + "Button", OBJPROP_BMPFILE, 1, "::Images\\" + RadiogroupOffFile);
+            if (!success)
+            {
+                PrintFormat("Failed to load dark radiogroup OFF state bitmap: %s. Error code: %d.", "::Images\\" + RadiogroupOffFile, GetLastError()); 
+            }
+        }
     }
 
     return true;
@@ -587,6 +633,34 @@ bool CAccountProtector::Create(const long chart, const string name, const int su
 {
     double screen_dpi = (double)TerminalInfoInteger(TERMINAL_SCREEN_DPI);
     m_DPIScale = screen_dpi / 96.0;
+
+    if (m_DPIScale <= 1)
+    {
+        if (DetectedColorMode)
+        {
+            CheckboxOnFile = "CheckBoxOnDark.bmp";
+            CheckboxOffFile = "CheckBoxOffDark.bmp";
+            RadiogroupOnFile = "RadioButtonOnDark.bmp";
+            RadiogroupOffFile = "RadioButtonOffDark.bmp";
+        }
+    }
+    else if (m_DPIScale >= 1.5)
+    {
+        if (DetectedColorMode)
+        {
+            CheckboxOnFile = "CheckBoxOnDark17.bmp";
+            CheckboxOffFile = "CheckBoxOffDark17.bmp";
+            RadiogroupOnFile = "RadioButtonOn16Dark.bmp";
+            RadiogroupOffFile = "RadioButtonOff16Dark.bmp";
+        }
+        else
+        {
+            CheckboxOnFile = "CheckBoxOn17.bmp";
+            CheckboxOffFile = "CheckBoxOff17.bmp";
+            RadiogroupOnFile = "RadioButtonOn16.bmp";
+            RadiogroupOffFile = "RadioButtonOff16.bmp";
+        }
+    }
 
     int x2 = x1 + (int)MathRound(390 * m_DPIScale);
     int y2 = y1 + (int)MathRound(300 * m_DPIScale);
@@ -661,6 +735,14 @@ bool CAccountProtector::CreateObjects()
 
     // Main Tab Objects
     y += element_height + 3 * v_spacing;
+
+    // Auto switch ON period (optional)
+    if (EnableAutoSwitchOnPeriod)
+    {
+        if (!CheckBoxCreate(m_ChkAutoSwitchOnPeriod, first_column_start, y, second_column_main_start + h_spacing, y + element_height, "m_ChkAutoSwitchOnPeriod", "Auto switch ON period:", "When ticked, Account Protector will automatically switch ON during the given time periods and OFF outside them. Example: 12-13, 14:00-16:45. Uses Day and Server/Local Time settings from Timer."))            return false;
+        if (!EditCreate(m_EdtAutoSwitchOnPeriod, second_column_main_start + h_spacing, y, panel_farther_end, y + element_height, "m_EdtAutoSwitchOnPeriod", "", "Time periods, e.g.: 12-13, 14:00-16:45, 19:55 - 21. Uses Day and Server/Local Time settings from Timer."))                                                               return false;
+        y += element_height + v_spacing;
+    }
     if (!LabelCreate(m_LblSpread, first_column_start, y, first_column_start + normal_label_width, y + element_height, "m_LblSpread", "Spread: " + DoubleToString((double)SymbolInfoInteger(Symbol(), SYMBOL_SPREAD) * SymbolInfoDouble(Symbol(), SYMBOL_POINT), (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS))))                                        return false;
     if (!CheckBoxCreate(m_ChkCountCommSwaps, second_column_main_start, y, panel_farther_end, y + element_height, "m_ChkCountCommSwaps", "Count commission/swaps", "If ticked, commission and swaps will be included in profit/loss of your trades"))            return false;
     y += element_height + v_spacing;
@@ -705,7 +787,8 @@ bool CAccountProtector::CreateObjects()
         y += element_height + 3 * v_spacing;
         if (!ButtonCreate(m_BtnEmergency, first_column_start, y, panel_farther_end, y + (int)(element_height * 2.5), "m_BtnEmergency", "Emergency button", "Close all trades, delete all pending orders, disable autotrading")) return false;
         m_BtnEmergency.ColorBackground(clrRed);
-        m_BtnEmergency.Color(clrWhite);
+        if (DetectedColorMode) m_BtnEmergency.Color(clrBlack);
+        else m_BtnEmergency.Color(clrWhite);
         y += (int)(element_height * 2.5) + v_spacing;
     }
     else y += element_height + v_spacing;
@@ -1473,7 +1556,7 @@ void CAccountProtector::CalculateDailyProfitLossAndStartingBalance()
             DailyProfitLossPoints += FloatingProfitPoints;
         }
         // Percentage of balance at the start of the day calculated by subtracting the current daily profit from the current balance.
-        DailyStartingBalance = AccountInfoDouble(ACCOUNT_BALANCE) - realized_daily_profit_loss_units;
+        DailyStartingBalance = AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_CREDIT) * (int)IncludeAccountCredit - realized_daily_profit_loss_units;
         if ((!DisableDailyProfitLossPercGE) || (!DisableDailyProfitLossPercLE))
         {
             if (DailyStartingBalance != 0) DailyProfitLossPerc = DailyProfitLossUnits / DailyStartingBalance * 100;
@@ -1493,12 +1576,21 @@ void CAccountProtector::RefreshPanelControls()
     if (sets.OnOff)
     {
         m_LblOnOff.Text("ON");
-        m_LblOnOff.Color(clrGreen);
+        if (DetectedColorMode) m_LblOnOff.Color(COLOR_ONOFF_ON_DARK);
+        else m_LblOnOff.Color(COLOR_ONOFF_ON);
     }
     else
     {
         m_LblOnOff.Text("OFF");
-        m_LblOnOff.Color(clrRed);
+        if (DetectedColorMode) m_LblOnOff.Color(COLOR_ONOFF_OFF_DARK);
+        else m_LblOnOff.Color(COLOR_ONOFF_OFF);
+    }
+
+    // Refresh auto switch ON period fields.
+    if (EnableAutoSwitchOnPeriod)
+    {
+        m_ChkAutoSwitchOnPeriod.Checked(sets.boolAutoSwitchOnPeriod);
+        m_EdtAutoSwitchOnPeriod.Text(sets.AutoSwitchOnPeriod);
     }
 
     // Refresh "Count commission/swaps".
@@ -1835,6 +1927,11 @@ void CAccountProtector::HideMain()
     HideControl(m_BtnNewSnapMargin);
     HideControl(m_BtnEmergency);
     HideControl(m_BtnResetEquityStopLoss);
+    if (EnableAutoSwitchOnPeriod)
+    {
+        HideControl(m_ChkAutoSwitchOnPeriod);
+        HideControl(m_EdtAutoSwitchOnPeriod);
+    }
 }
 
 // Shows design-elements of TabButton "Main".
@@ -1866,6 +1963,11 @@ void CAccountProtector::ShowMain()
     ShowControl(m_BtnNewSnapMargin);
     ShowControl(m_BtnEmergency);
     ShowControl(m_BtnResetEquityStopLoss);
+    if (EnableAutoSwitchOnPeriod)
+    {
+        ShowControl(m_ChkAutoSwitchOnPeriod);
+        ShowControl(m_EdtAutoSwitchOnPeriod);
+    }
 }
 
 // Hides design-elements of TabButton "Filters".
@@ -2164,6 +2266,7 @@ void CAccountProtector::SeekAndDestroyDuplicatePanels()
 void CAccountProtector::OnClickBtnOnOff()
 {
     sets.OnOff = !sets.OnOff;
+    CheckAutoSwitchOnPeriod();
     SaveSettingsOnDisk();
 }
 
@@ -2956,13 +3059,13 @@ void CAccountProtector::OnEndEditLossPerBalanceReverse()
 // Processes edit of input-field of Condition "Floating loss rises to currency units".
 void CAccountProtector::OnEndEditLossQuanUnits()
 {
-    EditChangeConditions(sets.doubleLossQuanUnits, m_EdtLossQuanUnits, "Floating loss rises to currency units", AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds);
+    EditChangeConditions(sets.doubleLossQuanUnits, m_EdtLossQuanUnits, "Floating loss rises to currency units", AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_CREDIT) * (int)IncludeAccountCredit + AdditionalFunds);
 }
 
 // Processes edit of input-field of Condition "Floating loss falls to currency units".
 void CAccountProtector::OnEndEditLossQuanUnitsReverse()
 {
-    EditChangeConditions(sets.doubleLossQuanUnitsReverse, m_EdtLossQuanUnitsReverse, "Floating loss falls to currency units", AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds);
+    EditChangeConditions(sets.doubleLossQuanUnitsReverse, m_EdtLossQuanUnitsReverse, "Floating loss falls to currency units", AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_CREDIT) * (int)IncludeAccountCredit + AdditionalFunds);
 }
 
 // Processes edit of input-field of Condition "Floating loss rises to points".
@@ -3353,9 +3456,6 @@ void CAccountProtector::OnClickBtnEmergency()
     }
 }
 
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
 void CAccountProtector::OnClickBtnDayOfWeek()
 {
     if (!m_BtnDayOfWeek.IsEnabled()) return;
@@ -3393,9 +3493,26 @@ void CAccountProtector::OnClickBtnDayOfWeek()
     RefreshValues();
 }
 
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
+// Changes Checkbox "Auto switch ON period".
+void CAccountProtector::OnChangeChkAutoSwitchOnPeriod()
+{
+    if (sets.boolAutoSwitchOnPeriod != m_ChkAutoSwitchOnPeriod.Checked())
+    {
+        sets.boolAutoSwitchOnPeriod = m_ChkAutoSwitchOnPeriod.Checked();
+        SaveSettingsOnDisk();
+    }
+}
+
+// Processes edit of "Auto switch ON period" field.
+void CAccountProtector::OnEndEditAutoSwitchOnPeriod()
+{
+    string text = m_EdtAutoSwitchOnPeriod.Text();
+    text = FormatAutoSwitchPeriod(text);
+    sets.AutoSwitchOnPeriod = text;
+    m_EdtAutoSwitchOnPeriod.Text(text);
+    SaveSettingsOnDisk();
+}
+
 void CAccountProtector::OnClickBtnPositionStatus()
 {
     switch(sets.CloseWhichPositions)
@@ -3694,6 +3811,10 @@ bool CAccountProtector::SaveSettingsOnDisk()
     FileWrite(fh, sets.TriggeredTime);
     FileWrite(fh, "TimerDayOfWeek");
     FileWrite(fh, IntegerToString(sets.TimerDayOfWeek));
+    FileWrite(fh, "boolAutoSwitchOnPeriod");
+    FileWrite(fh, IntegerToString(sets.boolAutoSwitchOnPeriod));
+    FileWrite(fh, "AutoSwitchOnPeriod");
+    FileWrite(fh, sets.AutoSwitchOnPeriod);
 
     // These are not part of settings but are panel-related input parameters.
     // When the EA is reloaded due to its input parameters change, these should be compared to the new values.
@@ -4261,6 +4382,10 @@ bool CAccountProtector::LoadSettingsFromDisk()
             sets.TriggeredTime = var_content;
         else if (var_name == "TimerDayOfWeek")
             sets.TimerDayOfWeek = (Day_of_Week)StringToInteger(var_content);
+        else if (var_name == "boolAutoSwitchOnPeriod")
+            sets.boolAutoSwitchOnPeriod = (bool)StringToInteger(var_content);
+        else if (var_name == "AutoSwitchOnPeriod")
+            sets.AutoSwitchOnPeriod = var_content;
 
         // Is the EA reloading due to the input parameters change?
         if (GlobalVariableGet("AP-" + IntegerToString(ChartID()) + "-Parameters") > 0)
@@ -4609,28 +4734,28 @@ void CAccountProtector::Close_All_Positions()
     }
 
     // Check condition to know whether and how to sort PositionsByProfit.
-    // PositionsByProfit is pre-filled either with point distances or with currency profits.
+    // PositionsByProfit is pre-filled with point distances, currency profits, or date/time.
 
     if (ArraySize(PositionsByProfit) > 0)
     {
-        if ((CloseFirst == ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST) || (CloseFirst == ENUM_CLOSE_TRADES_MOST_PROFITABLE_FIRST))
+        if (CloseFirst == ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST || CloseFirst == ENUM_CLOSE_TRADES_MOST_PROFITABLE_FIRST || CloseFirst == ENUM_CLOSE_TRADES_LIFO)
         {
             // Regardless of condition.
             DirectSorting = false;
             ArraySort(PositionsByProfit);
         }
-        else if ((CloseFirst == ENUM_CLOSE_TRADES_NEAREST_FIRST) || (CloseFirst == ENUM_CLOSE_TRADES_MOST_LOSING_FIRST)) 
+        else if (CloseFirst == ENUM_CLOSE_TRADES_NEAREST_FIRST || CloseFirst == ENUM_CLOSE_TRADES_MOST_LOSING_FIRST || CloseFirst == ENUM_CLOSE_TRADES_FIFO) 
         {
             // Regardless of condition.
             DirectSorting = true;
             ArraySort(PositionsByProfit);
         }
-        else if ((TriggeredCondition == Floating_loss_rises_to_perecentage) || (TriggeredCondition == Floating_loss_rises_to_currency_units) || (TriggeredCondition == Floating_loss_rises_to_points))
+        else if (TriggeredCondition == Floating_loss_rises_to_perecentage || TriggeredCondition == Floating_loss_rises_to_currency_units || TriggeredCondition == Floating_loss_rises_to_points)
         {
             DirectSorting = true;
             ArraySort(PositionsByProfit);
         }
-        else if ((TriggeredCondition == Floating_profit_rises_to_perecentage) || (TriggeredCondition == Floating_profit_rises_to_currency_units) || (TriggeredCondition == Floating_profit_rises_to_points))
+        else if (TriggeredCondition == Floating_profit_rises_to_perecentage || TriggeredCondition == Floating_profit_rises_to_currency_units || TriggeredCondition == Floating_profit_rises_to_points)
         {
             DirectSorting = false;
             ArraySort(PositionsByProfit);
@@ -4698,7 +4823,12 @@ void CAccountProtector::Close_All_Positions()
     {
         ulong ticket = (ulong)PositionsByProfit[i][1];
         if (ticket == 0) continue; // A previously closed position.
-        PositionSelectByTicket(ticket);
+        if (!PositionSelectByTicket(ticket)) // Position closed by something else (SL/TP or other EA).
+        {
+            Logging("Position #" + IntegerToString(ticket) + " could not be selected. Presumed closed elsewhere.");
+            PositionsByProfit[i][1] = 0; // Zero the ticket number to "forget" this positions.
+            continue;
+        }
         // Skip profitable positions if only losing ones should be closed.
         if ((sets.CloseWhichPositions == Losing) && (PositionGetDouble(POSITION_PROFIT) >= 0)) continue;
         // Skip losing positions if only profitable ones should be closed.
@@ -5143,6 +5273,8 @@ void CAccountProtector::Logging_Current_Settings()
     Logging("sets.UseTimer = " + (string)sets.UseTimer);
     Logging("sets.Timer = " + sets.Timer);
     Logging("sets.TimerDayOfWeek = " + EnumToString(sets.TimerDayOfWeek));
+    Logging("sets.boolAutoSwitchOnPeriod = " + (string)sets.boolAutoSwitchOnPeriod);
+    Logging("sets.AutoSwitchOnPeriod = " + sets.AutoSwitchOnPeriod);
     Logging("sets.TimeLeft = " + sets.TimeLeft);
     Logging("sets.intTimeType = " + IntegerToString(sets.intTimeType));
     Logging("sets.dtTimerLastTriggerTime = " + TimeToString(sets.dtTimerLastTriggerTime));
@@ -5316,8 +5448,10 @@ void CAccountProtector::Logging_Condition_Is_Met()
                 }
                 market_pl++;
                 ArrayResize(PositionsByProfit, market_pl, 100); // Reserve extra physical memory to increase the resizing speed.
-                if ((CloseFirst != ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST) && (CloseFirst != ENUM_CLOSE_TRADES_NEAREST_FIRST)) PositionsByProfit[market_pl - 1][0] = position_floating_profit; // Normal profit.
-                else if (SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT) != 0) PositionsByProfit[market_pl - 1][0] = MathAbs(PositionGetDouble(POSITION_PRICE_OPEN) - PositionGetDouble(POSITION_PRICE_CURRENT)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT); 
+                if (CloseFirst == ENUM_CLOSE_TRADES_MOST_PROFITABLE_FIRST || CloseFirst == ENUM_CLOSE_TRADES_MOST_LOSING_FIRST) PositionsByProfit[market_pl - 1][0] = position_floating_profit; // Normal profit.
+                else if ((CloseFirst == ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST || CloseFirst == ENUM_CLOSE_TRADES_NEAREST_FIRST) && SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT) != 0) PositionsByProfit[market_pl - 1][0] = MathAbs(PositionGetDouble(POSITION_PRICE_OPEN) - PositionGetDouble(POSITION_PRICE_CURRENT)) / SymbolInfoDouble(PositionGetString(POSITION_SYMBOL), SYMBOL_POINT); // Distance in points.
+                else if (CloseFirst == ENUM_CLOSE_TRADES_FIFO || CloseFirst == ENUM_CLOSE_TRADES_LIFO) PositionsByProfit[market_pl - 1][0] = (double)PositionGetInteger(POSITION_TIME); // Date and time.
+                else PositionsByProfit[market_pl - 1][0] = 0; // Default.
                 PositionsByProfit[market_pl - 1][1] = (double)ticket;
                 TotalVolume += PositionGetDouble(POSITION_VOLUME); // Used to close trades, so no need to filter by P/L.
             }
@@ -5348,7 +5482,7 @@ void CAccountProtector::Logging_Condition_Is_Met()
     string AdditionalFunds_Asterisk = "";
     if (AdditionalFunds != 0) AdditionalFunds_Asterisk = "*";
 
-    Logging("Account Equity = " + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds, AccountCurrencyDigits) + AdditionalFunds_Asterisk + " " + AccountInfoString(ACCOUNT_CURRENCY) + ", Account Free Margin = " + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_FREE) + AdditionalFunds, AccountCurrencyDigits) + AdditionalFunds_Asterisk + " " + AccountInfoString(ACCOUNT_CURRENCY) + ", Account Balance = " + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds, AccountCurrencyDigits) + AdditionalFunds_Asterisk + " " + AccountInfoString(ACCOUNT_CURRENCY));
+    Logging("Account Equity = " + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY) + AdditionalFunds, AccountCurrencyDigits) + AdditionalFunds_Asterisk + " " + AccountInfoString(ACCOUNT_CURRENCY) + ", Account Free Margin = " + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_FREE) + AdditionalFunds, AccountCurrencyDigits) + AdditionalFunds_Asterisk + " " + AccountInfoString(ACCOUNT_CURRENCY) + ", Account Balance = " + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_CREDIT) * (int)IncludeAccountCredit + AdditionalFunds, AccountCurrencyDigits) + AdditionalFunds_Asterisk + " " + AccountInfoString(ACCOUNT_CURRENCY));
     if (floating_profit >= 0) Logging("Floating profit (filtered) = " + DoubleToString(floating_profit, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
     else Logging("Floating loss (filtered) = " + DoubleToString(floating_profit, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
     Logging("Number of open positions (filtered) = " + IntegerToString(market) + ", Number of pending orders (filtered) = " + IntegerToString(pending) + ", Current spread = " + DoubleToString((double)SymbolInfoInteger(Symbol(), SYMBOL_SPREAD) * Point(), Digits()));
@@ -5476,11 +5610,11 @@ void CAccountProtector::CheckAllConditions()
     if (AdditionalFunds != 0) AdditionalFunds_Asterisk = "*";
 
     // Floating loss rose to <Actual percentage> % of balance.
-    if ((!DisableFloatLossRisePerc) && (FloatingProfit <= -(AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleLossPerBalance / 100))
+    if ((!DisableFloatLossRisePerc) && (FloatingProfit <= -(AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_CREDIT) * (int)IncludeAccountCredit + AdditionalFunds) * sets.doubleLossPerBalance / 100))
         CheckOneCondition(sets.doubleLossPerBalance, sets.boolLossPerBalance, "Floating loss rose to " + DoubleToString(sets.doubleLossPerBalance, 2) + "% of balance", Floating_loss_rises_to_perecentage);
 
     // Floating loss fell to <Actual percentage> % of balance.
-    if ((!DisableFloatLossFallPerc) && (FloatingProfit >= -(AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleLossPerBalanceReverse / 100))
+    if ((!DisableFloatLossFallPerc) && (FloatingProfit >= -(AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_CREDIT) * (int)IncludeAccountCredit + AdditionalFunds) * sets.doubleLossPerBalanceReverse / 100))
         CheckOneCondition(sets.doubleLossPerBalanceReverse, sets.boolLossPerBalanceReverse, "Floating loss fell to " + DoubleToString(sets.doubleLossPerBalanceReverse, 2) + "% of balance");
 
     // Floating loss rose to <Actual number> <currency ISO code>.
@@ -5500,11 +5634,11 @@ void CAccountProtector::CheckAllConditions()
         CheckOneCondition(sets.intLossPointsReverse, sets.boolLossPointsReverse, "Floating loss fell to " + IntegerToString(sets.intLossPointsReverse) + " points");
 
     // Floating profit rose to <Actual percentage> % of balance.
-    if ((!DisableFloatProfitRisePerc) && (FloatingProfit >= (AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleProfPerBalance / 100))
+    if ((!DisableFloatProfitRisePerc) && (FloatingProfit >= (AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_CREDIT) * (int)IncludeAccountCredit + AdditionalFunds) * sets.doubleProfPerBalance / 100))
         CheckOneCondition(sets.doubleProfPerBalance, sets.boolProfPerBalance, "Floating profit rose to " + DoubleToString(sets.doubleProfPerBalance, 2) + "% of balance", Floating_profit_rises_to_perecentage);
 
     // Floating profit fell to <Actual percentage> % of balance.
-    if ((!DisableFloatProfitFallPerc) && (FloatingProfit <= (AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds) * sets.doubleProfPerBalanceReverse / 100))
+    if ((!DisableFloatProfitFallPerc) && (FloatingProfit <= (AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_CREDIT) * (int)IncludeAccountCredit + AdditionalFunds) * sets.doubleProfPerBalanceReverse / 100))
         CheckOneCondition(sets.doubleProfPerBalanceReverse, sets.boolProfPerBalanceReverse, "Floating profit fell to " + DoubleToString(sets.doubleProfPerBalanceReverse, 2) + "% of balance");
 
     // Floating profit rose to <Actual number> <currency ISO code>.
@@ -5643,11 +5777,11 @@ void CAccountProtector::CheckAllConditions()
         CheckOneCondition(sets.intNumberOfOrdersLE, sets.boolNumberOfOrdersLE, "Number of pending orders less or equal to " + IntegerToString(sets.intNumberOfOrdersLE));
 
     // Balance fell to <Actual number> <currency ISO code>.
-    if ((!DisableBalanceLE) && (AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds <= sets.doubleBalanceLE))
+    if ((!DisableBalanceLE) && (AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_CREDIT) * (int)IncludeAccountCredit + AdditionalFunds <= sets.doubleBalanceLE))
         CheckOneCondition(sets.doubleBalanceLE, sets.boolBalanceLE, "Balance fell to " + DoubleToString(sets.doubleBalanceLE, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
 
     // Balance rose to <Actual number> <currency ISO code>.
-    if ((!DisableBalanceGE) && (AccountInfoDouble(ACCOUNT_BALANCE) + AdditionalFunds >= sets.doubleBalanceGE))
+    if ((!DisableBalanceGE) && (AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_CREDIT) * (int)IncludeAccountCredit + AdditionalFunds >= sets.doubleBalanceGE))
         CheckOneCondition(sets.doubleBalanceGE, sets.boolBalanceGE, "Balance rose to " + DoubleToString(sets.doubleBalanceGE, AccountCurrencyDigits) + " " + AccountInfoString(ACCOUNT_CURRENCY));
 
     // Signal received on channel <N>.
@@ -5972,6 +6106,161 @@ void CAccountProtector::LoadGlobalSnapshots()
         UpdateMarginSnapshotPanelFields();
         SaveSettingsOnDisk();
     }
+}
+
+//+------------------------------------------------------------------+
+//| Cleans up the auto switch period input string.                   |
+//| Adapted from AutoTrading Scheduler's FormatScheduleDay().        |
+//+------------------------------------------------------------------+
+string FormatAutoSwitchPeriod(string time)
+{
+    StringTrimLeft(time);
+    StringTrimRight(time);
+    int length = StringLen(time);
+
+    // For empty string, just clear everything.
+    if (length == 0)
+    {
+        return "";
+    }
+
+    // Clean up.
+    for (int i = 0; i < length; i++)
+    {
+        if (((time[i] < '0') || (time[i] > '9')) && (time[i] != ' ') && (time[i] != ',') && (time[i] != ':') && (time[i] != '.') && (time[i] != '-'))
+        {
+            // Wrong character found.
+            int replaced_characters = StringReplace(time, CharToString((uchar)time[i]), "");
+            length -= replaced_characters;
+            i--;
+        }
+    }
+    return time;
+}
+
+//+------------------------------------------------------------------+
+//| Parses a time string (e.g. "14", "14:30", "14.30") to minutes   |
+//| from midnight. Adapted from AutoTrading Scheduler.               |
+//+------------------------------------------------------------------+
+int ParseTimeToMinutes(const string time_str)
+{
+    int hours = 0;
+    int minutes = 0;
+    string hours_minutes[];
+    int n = StringSplit(time_str, ':', hours_minutes); // Split hours and minutes by colon.
+    if (n == 1) // Colon failed.
+    {
+        n = StringSplit(time_str, '.', hours_minutes); // Split hours and minutes by period.
+        if (n == 1) // Period failed.
+        {
+            // Only hours given.
+            hours = (int)StringToInteger(time_str);
+        }
+        else
+        {
+            hours = (int)StringToInteger(hours_minutes[0]);
+            minutes = (int)StringToInteger(hours_minutes[1]);
+        }
+    }
+    else
+    {
+        hours = (int)StringToInteger(hours_minutes[0]);
+        minutes = (int)StringToInteger(hours_minutes[1]);
+    }
+    return hours * 60 + minutes;
+}
+
+//+------------------------------------------------------------------+
+//| Checks if the current time falls within the auto switch period.  |
+//+------------------------------------------------------------------+
+bool CAccountProtector::IsWithinAutoSwitchPeriod()
+{
+    string time_str = sets.AutoSwitchOnPeriod;
+    time_str = FormatAutoSwitchPeriod(time_str);
+    if (time_str == "") return false;
+
+    // Get current time based on the selected time type.
+    datetime current_time;
+    if (sets.intTimeType == 1) current_time = TimeLocal();
+    else current_time = TimeCurrent();
+
+    MqlDateTime dt;
+    TimeToStruct(current_time, dt);
+    int current_minutes = dt.hour * 60 + dt.min; // Minutes from midnight.
+
+    // Count dashes to validate the string.
+    string time_copy = time_str;
+    int n_dashes = StringReplace(time_copy, "-", ",");
+    StringReplace(time_copy, " ", ""); // Remove spaces.
+
+    // Split into individual time values.
+    string times[];
+    int n = StringSplit(time_copy, ',', times);
+    if (n != n_dashes * 2)
+    {
+        return false; // Invalid format.
+    }
+
+    for (int i = 0; i < n; i += 2)
+    {
+        if (i + 1 >= n) break;
+
+        int start_minutes = ParseTimeToMinutes(times[i]);
+        int end_minutes = ParseTimeToMinutes(times[i + 1]);
+
+        if ((end_minutes == 0) && (start_minutes > 0)) end_minutes = 1440; // A special case for "0" or "00:00" meaning end of the day.
+
+        if (end_minutes <= start_minutes) continue; // Invalid range - skip.
+
+        if ((current_minutes >= start_minutes) && (current_minutes < end_minutes))
+            return true;
+    }
+
+    return false;
+}
+
+//+------------------------------------------------------------------+
+//| Automatically switches Account Protector ON/OFF based on the     |
+//| configured time period and day of week settings.                 |
+//+------------------------------------------------------------------+
+void CAccountProtector::CheckAutoSwitchOnPeriod()
+{
+    if (!EnableAutoSwitchOnPeriod) return;
+    if (!sets.boolAutoSwitchOnPeriod) return;
+    if (sets.AutoSwitchOnPeriod == "") return;
+
+    // Check day of week filter.
+    datetime current_time;
+    if (sets.intTimeType == 1) current_time = TimeLocal();
+    else current_time = TimeCurrent();
+
+    MqlDateTime dt;
+    TimeToStruct(current_time, dt);
+    int current_day_of_week = dt.day_of_week;
+    if (current_day_of_week == 0) current_day_of_week = 7; // Make Sunday the 7th day.
+
+    bool day_matches = false;
+    if (sets.TimerDayOfWeek == Any) day_matches = true;
+    else if ((int)sets.TimerDayOfWeek == current_day_of_week) day_matches = true;
+
+    bool should_be_on = false;
+    if (day_matches)
+    {
+        should_be_on = IsWithinAutoSwitchPeriod();
+    }
+
+    // Switch ON/OFF only when the state needs to change.
+    if ((should_be_on) && (!sets.OnOff))
+    {
+        sets.OnOff = true;
+        Logging("Auto switch ON period: Switching Account Protector ON.");
+    }
+    else if ((!should_be_on) && (sets.OnOff))
+    {
+        sets.OnOff = false;
+        Logging("Auto switch ON period: Switching Account Protector OFF.");
+    }
+    SaveSettingsOnDisk();
 }
 
 // Save equity snapshots to global variables for other instances of the Account Protector to read.

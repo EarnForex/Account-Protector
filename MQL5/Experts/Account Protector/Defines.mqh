@@ -1,6 +1,6 @@
 ﻿//+------------------------------------------------------------------+
 //|                                                      Defines.mqh |
-//|                             Copyright © 2017-2025, EarnForex.com |
+//|                             Copyright © 2017-2026, EarnForex.com |
 //|                                       https://www.earnforex.com/ |
 //+------------------------------------------------------------------+
 #include <Controls\Button.mqh>
@@ -10,9 +10,41 @@
 #include <Controls\RadioGroup.mqh>
 #include <Controls\ComboBox.mqh>
 
-#define CONTROLS_BUTTON_COLOR_ENABLE C'200,200,200'
-#define CONTROLS_BUTTON_COLOR_DISABLE C'224,224,224'
-#define CONTROLS_EDIT_COLOR_DISABLE C'221,221,211'
+// Additional checkbox bitmaps:
+#resource "Images\\CheckBoxOnDark.bmp"
+#resource "Images\\CheckBoxOffDark.bmp"
+#resource "Images\\CheckBoxOnDark17.bmp"
+#resource "Images\\CheckBoxOffDark17.bmp"
+#resource "Images\\CheckBoxOn17.bmp"
+#resource "Images\\CheckBoxOff17.bmp"
+
+// Additional radiogroup button bitmaps:
+#resource "Images\\RadioButtonOnDark.bmp"
+#resource "Images\\RadioButtonOffDark.bmp"
+#resource "Images\\RadioButtonOn16Dark.bmp"
+#resource "Images\\RadioButtonOff16Dark.bmp"
+#resource "Images\\RadioButtonOn16.bmp"
+#resource "Images\\RadioButtonOff16.bmp"
+
+color CONTROLS_EDIT_COLOR_ENABLE  = C'255,255,255';
+color CONTROLS_EDIT_COLOR_DISABLE = C'221,221,211';
+
+color CONTROLS_BUTTON_COLOR_ENABLE  = C'200,200,200';
+color CONTROLS_BUTTON_COLOR_DISABLE = C'224,224,224';
+
+color DARKMODE_BG_DARK_COLOR = 0x444444;
+color DARKMODE_CONTROL_BRODER_COLOR = 0x888888;
+color DARKMODE_MAIN_AREA_BORDER_COLOR = 0x333333;
+color DARKMODE_MAIN_AREA_BG_COLOR = 0x666666;
+color DARKMODE_EDIT_BG_COLOR = 0xAAAAAA;
+color DARKMODE_BUTTON_BG_COLOR = 0xA19999;
+color DARKMODE_TEXT_COLOR = 0x000000;
+
+#define COLOR_ONOFF_ON clrGreen
+#define COLOR_ONOFF_OFF clrRed
+
+#define COLOR_ONOFF_ON_DARK clrLimeGreen
+#define COLOR_ONOFF_OFF_DARK clrDarkRed
 
 #define LOG_TIMER_VALUE_WRONG "Timer value is wrong. Time format: HH:MM."
 
@@ -69,7 +101,9 @@ enum ENUM_CLOSE_TRADES
     ENUM_CLOSE_TRADES_MOST_DISTANT_FIRST, // Most distant trades first
     ENUM_CLOSE_TRADES_NEAREST_FIRST, // Nearest trades first
     ENUM_CLOSE_TRADES_MOST_PROFITABLE_FIRST, // Most profitable trades first
-    ENUM_CLOSE_TRADES_MOST_LOSING_FIRST // Most losing trades first
+    ENUM_CLOSE_TRADES_MOST_LOSING_FIRST, // Most losing trades first
+    ENUM_CLOSE_TRADES_FIFO, // FIFO (First-in, first-out)
+    ENUM_CLOSE_TRADES_LIFO // LIFO (Last-in, last-out)
 };
 
 struct Settings
@@ -205,5 +239,7 @@ struct Settings
     bool             Triggered;
     string           TriggeredTime;
     Day_of_Week      TimerDayOfWeek;
+    bool             boolAutoSwitchOnPeriod;
+    string           AutoSwitchOnPeriod;
 } sets;
 //+------------------------------------------------------------------+
